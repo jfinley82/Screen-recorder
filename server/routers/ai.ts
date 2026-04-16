@@ -40,7 +40,7 @@ export const aiRouter = router({
    */
   fetchTranscript: protectedProcedure
     .input(z.object({ recordingId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const [rec] = await db
         .select()
         .from(recordings)
