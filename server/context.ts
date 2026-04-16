@@ -8,7 +8,10 @@ export interface Context {
 }
 
 export function createContext({ req, res }: { req: Request; res: Response }): Context {
-  const token = getTokenFromCookies(req.cookies as Record<string, string>);
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const cookieToken = getTokenFromCookies(req.cookies as Record<string, string>);
+  const token = bearerToken ?? cookieToken;
   const payload = token ? verifyToken(token) : null;
   return {
     userId: payload?.userId ?? null,

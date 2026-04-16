@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Screen Recorder</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <!-- Login view -->
+  <div id="view-login" class="view hidden">
+    <div class="brand">&#9210; Screen Recorder</div>
+    <div class="field">
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div id="login-error" class="error hidden"></div>
+    <button id="btn-login" class="btn btn-primary">Log In</button>
+  </div>
+
+  <!-- Main / idle view -->
+  <div id="view-main" class="view hidden">
+
+    <div class="topbar">
+      <span class="brand-sm">&#9210; Screen Recorder</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <a id="link-lib-main" class="btn-link" target="_blank">Library</a>
+        <button id="btn-logout" class="btn-link">Log out</button>
+      </div>
+    </div>
+
+    <!-- Mode tabs -->
+    <div class="section-label">Recording Mode</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" data-mode="desktop">
+        <span class="mode-icon">🖥</span>
+        <span>Desktop</span>
+      </button>
+      <button class="mode-btn" data-mode="tab">
+        <span class="mode-icon">⬜</span>
+        <span>This Tab</span>
+      </button>
+      <button class="mode-btn" data-mode="camera">
+        <span class="mode-icon">📷</span>
+        <span>Camera</span>
+      </button>
+      <button class="mode-btn" data-mode="desktop+camera">
+        <span class="mode-icon">🖥+📷</span>
+        <span>Cam Overlay</span>
+      </button>
+    </div>
+
+    <!-- Microphone -->
+    <div class="section-label">Microphone</div>
+    <select id="select-mic" class="select">
+      <option value="">No Microphone</option>
+    </select>
+
+    <!-- Camera (hidden in desktop/tab-only modes) -->
+    <div id="camera-row">
+      <div class="section-label">Camera</div>
+      <select id="select-camera" class="select">
+        <option value="">No Camera</option>
+      </select>
+    </div>
+
+    <!-- Quality -->
+    <div class="quality-row">
+      <div>
+        <div class="section-label">Quality</div>
+        <select id="select-quality" class="select select-sm">
+          <option value="720">HD 720p</option>
+          <option value="1080" selected>FHD 1080p</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="btn-start" class="btn btn-primary btn-start">
+      <span class="rec-dot"></span> Start Recording
+    </button>
+  </div>
+
+  <!-- Recording view -->
+  <div id="view-recording" class="view hidden">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; Screen Recorder</span>
+    </div>
+    <div class="recording-status">
+      <span class="rec-dot pulse"></span>
+      <span>Recording</span>
+      <span id="timer" class="timer">0:00</span>
+    </div>
+    <button id="btn-stop" class="btn btn-danger">&#9632;&nbsp; Stop &amp; Save</button>
+  </div>
+
+  <!-- Uploading view -->
+  <div id="view-uploading" class="view hidden">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; Screen Recorder</span>
+    </div>
+    <div class="center-msg">&#8635; Uploading to library&hellip;</div>
+    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+  </div>
+
+  <!-- Done view -->
+  <div id="view-done" class="view hidden">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; Screen Recorder</span>
+    </div>
+    <div class="center-msg success">&#10003; Saved to your library!</div>
+    <a id="link-library" class="btn btn-primary" target="_blank">Open Library &rarr;</a>
+    <button id="btn-again" class="btn btn-secondary">Record Another</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
