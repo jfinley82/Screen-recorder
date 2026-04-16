@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Screen Recorder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Record your screen and save directly to your library",
-  "permissions": ["desktopCapture", "storage", "offscreen", "notifications"],
+  "permissions": ["desktopCapture", "storage", "offscreen", "notifications", "downloads"],
   "host_permissions": ["https://screen-recorder-production-a0f1.up.railway.app/*"],
   "background": {
     "service_worker": "background.js",
@@ -12,5 +12,9 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Screen Recorder"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   }
 }

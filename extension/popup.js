@@ -1,19 +1,15 @@
 const APP_URL = "https://screen-recorder-production-a0f1.up.railway.app";
 
-const views = {
-  login: document.getElementById("view-login"),
-  idle: document.getElementById("view-idle"),
-  recording: document.getElementById("view-recording"),
-  uploading: document.getElementById("view-uploading"),
-  done: document.getElementById("view-done"),
-};
-
+// ── view helpers ────────────────────────────────────────────────────────────
+const views = ["login", "main", "recording", "uploading", "done"];
 function showView(name) {
-  Object.entries(views).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
+  views.forEach((v) => {
+    document.getElementById(`view-${v}`).classList.toggle("hidden", v !== name);
+  });
 }
 
+// ── timer ────────────────────────────────────────────────────────────────────
 let timerInterval = null;
-
 function startTimer(startMs) {
   const el = document.getElementById("timer");
   timerInterval = setInterval(() => {
@@ -21,55 +17,112 @@ function startTimer(startMs) {
     el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }, 500);
 }
+function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
 
-function stopTimer() {
-  clearInterval(timerInterval);
-  timerInterval = null;
+// ── device enumeration ───────────────────────────────────────────────────────
+async function loadDevices() {
+  try {
+    // Request permission so devices have labels
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() =>
+      navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null)
+    );
+    if (s) s.getTracks().forEach((t) => t.stop());
+  } catch {}
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+
+  const micSel = document.getElementById("select-mic");
+  const camSel = document.getElementById("select-camera");
+
+  // Keep the "No X" option, add real devices
+  devices.filter((d) => d.kind === "audioinput").forEach((d) => {
+    const opt = new Option(d.label || `Microphone ${micSel.options.length}`, d.deviceId);
+    micSel.appendChild(opt);
+  });
+
+  devices.filter((d) => d.kind === "videoinput").forEach((d) => {
+    const opt = new Option(d.label || `Camera ${camSel.options.length}`, d.deviceId);
+    camSel.appendChild(opt);
+  });
+
+  // Restore saved selections
+  const saved = await chrome.storage.local.get(["micId", "cameraId", "quality", "mode"]);
+  if (saved.micId) micSel.value = saved.micId;
+  if (saved.cameraId) camSel.value = saved.cameraId;
+  if (saved.quality) document.getElementById("select-quality").value = saved.quality;
+  if (saved.mode) setMode(saved.mode);
 }
 
-async function init() {
-  const { token, user, recordingState, recordingStart } =
-    await chrome.storage.local.get(["token", "user", "recordingState", "recordingStart"]);
+// ── mode selection ───────────────────────────────────────────────────────────
+let currentMode = "desktop";
 
-  if (!token) {
-    showView("login");
-    return;
-  }
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll(".mode-btn").forEach((btn) =>
+    btn.classList.toggle("active", btn.dataset.mode === mode)
+  );
+  // Show camera selector only for camera-using modes
+  const showCam = mode === "camera" || mode === "desktop+camera";
+  document.getElementById("camera-row").style.display = showCam ? "" : "none";
+}
+
+document.querySelectorAll(".mode-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setMode(btn.dataset.mode);
+    chrome.storage.local.set({ mode: btn.dataset.mode });
+  });
+});
+
+// Save device selections when changed
+document.getElementById("select-mic").addEventListener("change", (e) =>
+  chrome.storage.local.set({ micId: e.target.value })
+);
+document.getElementById("select-camera").addEventListener("change", (e) =>
+  chrome.storage.local.set({ cameraId: e.target.value })
+);
+document.getElementById("select-quality").addEventListener("change", (e) =>
+  chrome.storage.local.set({ quality: e.target.value })
+);
+
+// ── init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const { token, recordingState, recordingStart } = await chrome.storage.local.get([
+    "token", "recordingState", "recordingStart",
+  ]);
+
+  if (!token) { showView("login"); return; }
 
   if (recordingState === "recording") {
     showView("recording");
     startTimer(recordingStart || Date.now());
     return;
   }
-
-  if (recordingState === "uploading") {
-    showView("uploading");
-    return;
-  }
-
+  if (recordingState === "uploading") { showView("uploading"); return; }
   if (recordingState === "done") {
     showView("done");
     document.getElementById("link-library").href = `${APP_URL}/library`;
     return;
   }
 
-  showView("idle");
-  document.getElementById("user-name").textContent = `Hi, ${user?.name?.split(" ")[0] ?? "there"}`;
+  document.getElementById("link-lib-main").href = `${APP_URL}/library`;
+  showView("main");
+  setMode("desktop"); // default; loadDevices restores saved mode
+  await loadDevices();
 }
 
-// Login
+// ── login ────────────────────────────────────────────────────────────────────
 document.getElementById("btn-login").addEventListener("click", async () => {
-  const email = document.getElementById("login-email").value.trim();
+  const email    = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
-  const errorEl = document.getElementById("login-error");
-  const btn = document.getElementById("btn-login");
+  const errorEl  = document.getElementById("login-error");
+  const btn      = document.getElementById("btn-login");
 
   errorEl.classList.add("hidden");
   btn.disabled = true;
   btn.textContent = "Logging in…";
 
   try {
-    const res = await fetch(`${APP_URL}/trpc/auth.login`, {
+    const res  = await fetch(`${APP_URL}/trpc/auth.login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ json: { email, password } }),
@@ -78,10 +131,12 @@ document.getElementById("btn-login").addEventListener("click", async () => {
     if (body.error) throw new Error(body.error?.json?.message || "Login failed");
 
     const data = body.result.data.json;
-    await chrome.storage.local.set({ token: data.token, user: { name: data.name, email: data.email } });
+    if (!data.token) throw new Error("Server not yet updated — please deploy latest version.");
 
-    document.getElementById("user-name").textContent = `Hi, ${data.name.split(" ")[0]}`;
-    showView("idle");
+    await chrome.storage.local.set({ token: data.token, user: { name: data.name } });
+    showView("main");
+    setMode("desktop");
+    await loadDevices();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove("hidden");
@@ -91,25 +146,48 @@ document.getElementById("btn-login").addEventListener("click", async () => {
   }
 });
 
-// Logout
+// ── logout ───────────────────────────────────────────────────────────────────
 document.getElementById("btn-logout").addEventListener("click", async () => {
   await chrome.storage.local.clear();
   showView("login");
 });
 
-// Start recording
-document.getElementById("btn-record").addEventListener("click", () => {
-  chrome.desktopCapture.chooseDesktopMedia(["screen", "window", "tab"], async (streamId) => {
-    if (!streamId) return;
-    const now = Date.now();
-    await chrome.storage.local.set({ recordingState: "recording", recordingStart: now });
-    chrome.runtime.sendMessage({ type: "START_RECORDING", streamId });
-    showView("recording");
-    startTimer(now);
-  });
+// ── start recording ───────────────────────────────────────────────────────────
+document.getElementById("btn-start").addEventListener("click", async () => {
+  const micId   = document.getElementById("select-mic").value;
+  const cameraId = document.getElementById("select-camera").value;
+  const quality  = document.getElementById("select-quality").value;
+
+  const needsDesktopPicker = currentMode === "desktop" || currentMode === "tab" || currentMode === "desktop+camera";
+
+  if (needsDesktopPicker) {
+    const sources = currentMode === "tab" ? ["tab"] : ["screen", "window"];
+    chrome.desktopCapture.chooseDesktopMedia(sources, async (streamId) => {
+      if (!streamId) return;
+      await startRecording(streamId, micId, cameraId, quality);
+    });
+  } else {
+    // Camera-only mode — no desktop picker needed
+    await startRecording(null, micId, cameraId, quality);
+  }
 });
 
-// Stop recording
+async function startRecording(streamId, micId, cameraId, quality) {
+  const now = Date.now();
+  await chrome.storage.local.set({ recordingState: "recording", recordingStart: now });
+  chrome.runtime.sendMessage({
+    type: "START_RECORDING",
+    streamId,
+    mode: currentMode,
+    micId,
+    cameraId,
+    quality,
+  });
+  showView("recording");
+  startTimer(now);
+}
+
+// ── stop recording ────────────────────────────────────────────────────────────
 document.getElementById("btn-stop").addEventListener("click", async () => {
   stopTimer();
   showView("uploading");
@@ -117,15 +195,15 @@ document.getElementById("btn-stop").addEventListener("click", async () => {
   chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
 });
 
-// Record another
+// ── record another ────────────────────────────────────────────────────────────
 document.getElementById("btn-again").addEventListener("click", async () => {
   await chrome.storage.local.remove(["recordingState", "recordingStart"]);
-  const { user } = await chrome.storage.local.get("user");
-  document.getElementById("user-name").textContent = `Hi, ${user?.name?.split(" ")[0] ?? "there"}`;
-  showView("idle");
+  showView("main");
+  setMode(currentMode);
+  await loadDevices();
 });
 
-// Listen for background messages (upload progress / done)
+// ── messages from background ──────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "UPLOAD_PROGRESS") {
     document.getElementById("progress-fill").style.width = `${msg.percent}%`;
@@ -137,8 +215,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg.type === "UPLOAD_ERROR") {
     stopTimer();
-    showView("idle");
-    alert(`Upload failed: ${msg.error}`);
+    chrome.storage.local.remove(["recordingState", "recordingStart"]);
+    showView("main");
+    alert(`Recording failed: ${msg.error}`);
   }
 });
 
