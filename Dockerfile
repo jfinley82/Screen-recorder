@@ -27,7 +27,7 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 # The server reads dist/server/index.js
-EXPOSE 3000
+EXPOSE 8080
 
 # Run DB migrations then start the server
 CMD ["sh", "-c", "npx drizzle-kit push && node dist/server/index.js"]
