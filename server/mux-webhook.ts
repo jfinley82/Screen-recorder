@@ -10,7 +10,7 @@ export async function muxWebhookHandler(req: Request, res: Response) {
   try {
     // Verify the webhook signature (v9 instance method)
     mux.webhooks.verifySignature(
-      req.body as Buffer,
+      (req.body as Buffer).toString(),
       req.headers as Record<string, string>,
       webhookSecret
     );
