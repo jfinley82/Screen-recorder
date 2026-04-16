@@ -24,8 +24,10 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 # The server reads dist/server/index.js
 EXPOSE 3000
 
-CMD ["node", "dist/server/index.js"]
+# Run DB migrations then start the server
+CMD ["sh", "-c", "npx drizzle-kit push && node dist/server/index.js"]
