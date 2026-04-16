@@ -1,15 +1,33 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import superjson from "superjson";
 import { db } from "../db.js";
 import { recordings } from "../../drizzle/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { getMuxAsset } from "../mux.js";
+import { getMuxAsset, video } from "../mux.js";
+import type { Context } from "../context.js";
 
-const t = initTRPC.context<Record<string, never>>().create({ transformer: superjson });
+const t = initTRPC.context<Context>().create({ transformer: superjson });
 const router = t.router;
-const publicProcedure = t.procedure;
+
+/** Requires a valid session cookie — ctx.userId is narrowed to number */
+const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx: { ...ctx, userId: ctx.userId } });
+});
+
+/** Throws NOT_FOUND / FORBIDDEN if the recording isn't owned by userId */
+async function assertOwner(id: number, userId: number) {
+  const [rec] = await db
+    .select({ id: recordings.id, userId: recordings.userId })
+    .from(recordings)
+    .where(eq(recordings.id, id))
+    .limit(1);
+  if (!rec) throw new TRPCError({ code: "NOT_FOUND" });
+  if (rec.userId !== userId) throw new TRPCError({ code: "FORBIDDEN" });
+  return rec;
+}
 
 const AnnotationSchema = z.object({
   id: z.string(),
@@ -50,29 +68,30 @@ const OverlaySchema = z.object({
 });
 
 export const recordingsRouter = router({
-  /** List all recordings (most recent first) */
-  list: publicProcedure.query(async () => {
+  /** List recordings belonging to the current user */
+  list: protectedProcedure.query(async ({ ctx }) => {
     return db
       .select()
       .from(recordings)
+      .where(eq(recordings.userId, ctx.userId))
       .orderBy(desc(recordings.createdAt))
       .limit(100);
   }),
 
-  /** Get a single recording by ID */
-  get: publicProcedure
+  /** Get a single recording (must belong to current user) */
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const [rec] = await db
         .select()
         .from(recordings)
-        .where(eq(recordings.id, input.id))
+        .where(and(eq(recordings.id, input.id), eq(recordings.userId, ctx.userId)))
         .limit(1);
       return rec ?? null;
     }),
 
-  /** Get a recording by share token (public) */
-  getByToken: publicProcedure
+  /** Get by share token — public, no auth required */
+  getByToken: t.procedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
       const [rec] = await db
@@ -82,7 +101,6 @@ export const recordingsRouter = router({
         .limit(1);
       if (!rec) return null;
 
-      // Increment view count
       await db
         .update(recordings)
         .set({ viewCount: (rec.viewCount ?? 0) + 1 })
@@ -91,8 +109,8 @@ export const recordingsRouter = router({
       return rec;
     }),
 
-  /** Create a new recording record (called after upload starts) */
-  create: publicProcedure
+  /** Create a recording record after the browser has finished uploading */
+  create: protectedProcedure
     .input(
       z.object({
         title: z.string().optional(),
@@ -102,8 +120,9 @@ export const recordingsRouter = router({
         muxPlaybackId: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const [result] = await db.insert(recordings).values({
+        userId: ctx.userId,
         title: input.title ?? "Untitled Recording",
         status: "processing",
         s3Key: input.s3Key,
@@ -122,17 +141,18 @@ export const recordingsRouter = router({
     }),
 
   /** Update title */
-  updateTitle: publicProcedure
+  updateTitle: protectedProcedure
     .input(z.object({ id: z.number(), title: z.string().min(1).max(255) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
       await db
         .update(recordings)
         .set({ title: input.title })
         .where(eq(recordings.id, input.id));
     }),
 
-  /** Save editor state (trim, annotations, chapters, overlays) */
-  saveEdits: publicProcedure
+  /** Save editor state */
+  saveEdits: protectedProcedure
     .input(
       z.object({
         id: z.number(),
@@ -143,7 +163,8 @@ export const recordingsRouter = router({
         overlays: z.array(OverlaySchema).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
       const { id, ...updates } = input;
       await db
         .update(recordings)
@@ -152,7 +173,7 @@ export const recordingsRouter = router({
     }),
 
   /** Toggle public sharing */
-  updateSharing: publicProcedure
+  updateSharing: protectedProcedure
     .input(
       z.object({
         id: z.number(),
@@ -160,17 +181,20 @@ export const recordingsRouter = router({
         password: z.string().nullable().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
       await db
         .update(recordings)
         .set({ isPublic: input.isPublic, password: input.password ?? null })
         .where(eq(recordings.id, input.id));
     }),
 
-  /** Poll Mux until asset is ready, then sync status */
-  syncStatus: publicProcedure
+  /** Poll Mux until asset is ready */
+  syncStatus: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
+
       const [rec] = await db
         .select()
         .from(recordings)
@@ -183,12 +207,20 @@ export const recordingsRouter = router({
       if (asset.status === "ready") {
         const playbackId =
           asset.playback_ids?.find((p) => p.policy === "public")?.id ?? rec.muxPlaybackId;
+
+        // Also pick up the caption track ID if available
+        const captionTrack = asset.tracks?.find(
+          (tr) => tr.type === "text" && (tr as { text_type?: string }).text_type === "subtitles"
+        );
+
         await db
           .update(recordings)
           .set({
             status: "ready",
             muxPlaybackId: playbackId ?? undefined,
             duration: Math.round(asset.duration ?? 0),
+            muxCaptionTrackId: captionTrack?.id ?? undefined,
+            transcriptStatus: captionTrack ? "ready" : "none",
           })
           .where(eq(recordings.id, input.id));
       } else if (asset.status === "errored") {
@@ -206,10 +238,29 @@ export const recordingsRouter = router({
       return updated;
     }),
 
-  /** Delete a recording */
-  delete: publicProcedure
+  /**
+   * Return the public Mux VTT URL for auto-generated captions.
+   * The client fetches this URL directly and parses the VTT.
+   */
+  getTranscriptUrl: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const [rec] = await db
+        .select()
+        .from(recordings)
+        .where(and(eq(recordings.id, input.id), eq(recordings.userId, ctx.userId)))
+        .limit(1);
+
+      if (!rec?.muxPlaybackId || !rec.muxCaptionTrackId) return null;
+
+      return `https://stream.mux.com/${rec.muxPlaybackId}/text/${rec.muxCaptionTrackId}.vtt`;
+    }),
+
+  /** Delete a recording */
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
       await db.delete(recordings).where(eq(recordings.id, input.id));
     }),
 });

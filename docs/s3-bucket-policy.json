@@ -1,0 +1,20 @@
+{
+  "Comment": "Deny all public GetObject requests. Uploads use presigned PUT URLs; downloads never go through S3 directly (Mux fetches via a presigned GET URL that expires in 15 minutes).",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyPublicRead",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::YOUR-ACCOUNT-ID:role/YOUR-APP-ROLE"
+          ]
+        }
+      }
+    }
+  ]
+}

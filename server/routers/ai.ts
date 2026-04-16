@@ -1,15 +1,19 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import superjson from "superjson";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db.js";
 import { recordings } from "../../drizzle/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { video } from "../mux.js";
+import type { Context } from "../context.js";
 
-const t = initTRPC.context<Record<string, never>>().create({ transformer: superjson });
+const t = initTRPC.context<Context>().create({ transformer: superjson });
 const router = t.router;
-const publicProcedure = t.procedure;
+const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx: { ...ctx, userId: ctx.userId } });
+});
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -34,13 +38,13 @@ export const aiRouter = router({
   /**
    * Fetch the Mux-generated transcript for a recording.
    */
-  fetchTranscript: publicProcedure
+  fetchTranscript: protectedProcedure
     .input(z.object({ recordingId: z.number() }))
     .mutation(async ({ input }) => {
       const [rec] = await db
         .select()
         .from(recordings)
-        .where(eq(recordings.id, input.recordingId))
+        .where(and(eq(recordings.id, input.recordingId), eq(recordings.userId, ctx.userId)))
         .limit(1);
 
       if (!rec?.muxAssetId) throw new Error("Recording not found or not ready");
@@ -69,7 +73,7 @@ export const aiRouter = router({
    * Run AI auto-edit analysis on the transcript.
    * Uses prompt caching for the system prompt to reduce cost.
    */
-  autoEdit: publicProcedure
+  autoEdit: protectedProcedure
     .input(
       z.object({
         recordingId: z.number(),
@@ -151,7 +155,7 @@ Include up to 15 suggestions and up to 8 chapters. Only include timestamps you a
   /**
    * Generate a shareable title and description from the transcript.
    */
-  generateMeta: publicProcedure
+  generateMeta: protectedProcedure
     .input(
       z.object({
         transcript: z.string(),

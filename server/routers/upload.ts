@@ -1,19 +1,23 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import superjson from "superjson";
 import { createPresignedUploadUrl, createPresignedReadUrl, BUCKET } from "../s3.js";
 import { createMuxAssetFromS3 } from "../mux.js";
+import type { Context } from "../context.js";
 
-const t = initTRPC.context<Record<string, never>>().create({ transformer: superjson });
+const t = initTRPC.context<Context>().create({ transformer: superjson });
 const router = t.router;
-const publicProcedure = t.procedure;
+const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx: { ...ctx, userId: ctx.userId } });
+});
 
 export const uploadRouter = router({
   /**
    * Step 1 — get a presigned URL so the browser can upload directly to S3.
    * Returns the S3 key and presigned PUT URL.
    */
-  presign: publicProcedure
+  presign: protectedProcedure
     .input(
       z.object({
         filename: z.string(),
@@ -32,7 +36,7 @@ export const uploadRouter = router({
    * call this to ingest it into Mux.
    * Returns the Mux asset ID and (eventual) playback ID.
    */
-  ingestToMux: publicProcedure
+  ingestToMux: protectedProcedure
     .input(
       z.object({
         s3Key: z.string(),

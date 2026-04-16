@@ -1,16 +1,37 @@
 import { useParams } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { VideoPlayer } from "@/components/viewer/VideoPlayer";
+import { TranscriptPanel } from "@/components/viewer/TranscriptPanel";
 import { Loader2, Video, Eye } from "lucide-react";
 import type { Annotation, Chapter, TranscriptSegment } from "~/types";
 import { formatSec } from "@/lib/utils";
+import { fetchAndParseVTT } from "@/lib/vtt";
 
 export default function ViewerPage() {
   const { token } = useParams<{ token: string }>();
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
+  const [seekFn, setSeekFn] = useState<((ms: number) => void) | null>(null);
+
   const { data: recording, isLoading } = trpc.recordings.getByToken.useQuery(
     { token: token! },
     { enabled: !!token }
   );
+
+  // Fetch VTT once we have the playback ID and caption track
+  useEffect(() => {
+    if (!recording?.muxPlaybackId || !recording.muxCaptionTrackId) return;
+
+    const url = `https://stream.mux.com/${recording.muxPlaybackId}/text/${recording.muxCaptionTrackId}.vtt`;
+    fetchAndParseVTT(url)
+      .then(setTranscript)
+      .catch(() => {}); // silently skip if transcript unavailable
+  }, [recording?.muxPlaybackId, recording?.muxCaptionTrackId]);
+
+  const handleSeek = useCallback((ms: number) => {
+    seekFn?.(ms);
+  }, [seekFn]);
 
   if (isLoading) {
     return (
@@ -65,7 +86,7 @@ export default function ViewerPage() {
       </header>
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
+      <main className="max-w-4xl mx-auto px-6 py-8 space-y-5">
         <div>
           <h1 className="text-2xl font-semibold">{recording.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -75,7 +96,9 @@ export default function ViewerPage() {
 
         {recording.aiSummary && (
           <div className="p-4 rounded-xl bg-secondary text-sm">
-            <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-1">Summary</p>
+            <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-1">
+              Summary
+            </p>
             <p>{recording.aiSummary}</p>
           </div>
         )}
@@ -86,8 +109,19 @@ export default function ViewerPage() {
           chapters={(recording.chapters as Chapter[]) ?? []}
           trimStart={recording.trimStart ?? 0}
           trimEnd={trimEnd}
-          transcript={(recording.transcript as TranscriptSegment[]) ?? []}
+          currentTimeMs={currentTimeMs}
+          onTimeUpdate={setCurrentTimeMs}
+          onSeekReady={(fn) => setSeekFn(() => fn)}
         />
+
+        {/* Transcript panel — shown below the player */}
+        {recording.transcriptStatus === "ready" && (
+          <TranscriptPanel
+            segments={transcript}
+            currentTimeMs={currentTimeMs}
+            onSeek={handleSeek}
+          />
+        )}
       </main>
     </div>
   );

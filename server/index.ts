@@ -1,16 +1,25 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./router.js";
+import { createContext } from "./context.js";
 import { muxWebhookHandler } from "./mux-webhook.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
-app.use(cors({ origin: process.env.BASE_URL ?? "http://localhost:5173" }));
+app.use(
+  cors({
+    origin: process.env.BASE_URL ?? "http://localhost:5173",
+    credentials: true, // required for cookies
+  })
+);
 
-// Mux webhook needs raw body
+app.use(cookieParser());
+
+// Mux webhook needs raw body — register before express.json()
 app.post(
   "/api/webhooks/mux",
   express.raw({ type: "application/json" }),
@@ -19,12 +28,12 @@ app.post(
 
 app.use(express.json({ limit: "50mb" }));
 
-// tRPC
+// tRPC — pass req & res so createContext can read/write cookies
 app.use(
   "/trpc",
   createExpressMiddleware({
     router: appRouter,
-    createContext: () => ({}),
+    createContext,
   })
 );
 

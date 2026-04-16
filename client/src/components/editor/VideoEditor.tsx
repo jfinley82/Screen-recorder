@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import MuxPlayer from "@mux/mux-player-react";
-import { Play, Pause, SkipBack, Sparkles, Loader2, BookOpen, Share2, Check } from "lucide-react";
+import { Play, Pause, SkipBack, Sparkles, Loader2, BookOpen, Share2, Check, Layers } from "lucide-react";
 import { Timeline } from "./Timeline";
 import { AnnotationCanvas } from "./AnnotationCanvas";
 import { AnnotationToolbar, type DrawTool } from "./AnnotationToolbar";
+import { OverlayCanvas, OverlayCreator } from "./OverlayCanvas";
 import { trpc } from "@/lib/trpc";
 import type { Annotation, Chapter, Overlay, Recording } from "~/types";
 import { randomUUID } from "@/lib/uuid";
@@ -31,7 +32,7 @@ export function VideoEditor({ recording, onSaved }: Props) {
   const [chapters, setChapters] = useState<Chapter[]>(
     (recording.chapters as Chapter[]) ?? []
   );
-  const [overlays] = useState<Overlay[]>((recording.overlays as Overlay[]) ?? []);
+  const [overlays, setOverlays] = useState<Overlay[]>((recording.overlays as Overlay[]) ?? []);
 
   const [activeTool, setActiveTool] = useState<DrawTool>("select");
   const [activeColor, setActiveColor] = useState("#ef4444");
@@ -212,7 +213,10 @@ export function VideoEditor({ recording, onSaved }: Props) {
               </div>
             )}
 
-            {/* Annotation overlay */}
+            {/* Overlay canvas (lower thirds, CTAs, logos) */}
+            <OverlayCanvas overlays={overlays} currentTimeMs={currentTimeMs} />
+
+            {/* Annotation canvas (arrows, text, shapes) */}
             <AnnotationCanvas
               annotations={annotations}
               currentTimeMs={currentTimeMs}
@@ -346,9 +350,42 @@ export function VideoEditor({ recording, onSaved }: Props) {
 
           {/* Overlays tab */}
           {activeTab === "overlays" && (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Overlay editor coming soon — lower thirds, logos, and CTAs.
-            </p>
+            <div className="space-y-4">
+              <OverlayCreator
+                currentTimeMs={currentTimeMs}
+                durationMs={durationMs}
+                onAdd={(ov) => setOverlays((prev) => [...prev, ov])}
+              />
+              {overlays.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Added ({overlays.length})
+                  </p>
+                  {overlays.map((ov) => (
+                    <div key={ov.id} className="flex items-center justify-between p-2 rounded-lg border border-border text-sm">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium capitalize">{ov.type.replace("-", " ")}</p>
+                          {ov.content && <p className="text-xs text-muted-foreground truncate max-w-[140px]">{ov.content}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <button onClick={() => seek(ov.startTime)} className="hover:text-primary">
+                          {formatMs(ov.startTime)}
+                        </button>
+                        <button
+                          onClick={() => setOverlays((prev) => prev.filter((o) => o.id !== ov.id))}
+                          className="hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* AI tab */}
