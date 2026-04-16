@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Video } from "lucide-react";
@@ -81,10 +81,9 @@ export default function LoginPage() {
         </form>
 
         <p className="text-sm text-center text-muted-foreground">
-          Don't have an account?{" "}
-          <Link to="/signup" className="text-primary hover:underline font-medium">
-            Sign up
-          </Link>
+          <span className="text-muted-foreground/60 text-xs">
+            Forgot your password? Contact your administrator.
+          </span>
         </p>
       </div>
     </div>

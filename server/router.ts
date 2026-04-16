@@ -5,6 +5,7 @@ import { authRouter } from "./routers/auth.js";
 import { recordingsRouter } from "./routers/recordings.js";
 import { uploadRouter } from "./routers/upload.js";
 import { aiRouter } from "./routers/ai.js";
+import { commentsRouter } from "./routers/comments.js";
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
@@ -15,6 +16,7 @@ export const appRouter = t.router({
   recordings: recordingsRouter,
   upload: uploadRouter,
   ai: aiRouter,
+  comments: commentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

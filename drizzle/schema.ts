@@ -21,6 +21,13 @@ export const users = mysqlTable(
     name: varchar({ length: 255 }).notNull(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     avatarUrl: varchar("avatar_url", { length: 1024 }),
+    businessName: varchar("business_name", { length: 255 }),
+    website: varchar({ length: 512 }),
+    twitterUrl: varchar("twitter_url", { length: 512 }),
+    linkedinUrl: varchar("linkedin_url", { length: 512 }),
+    youtubeUrl: varchar("youtube_url", { length: 512 }),
+    instagramUrl: varchar("instagram_url", { length: 512 }),
+    brandColor: varchar("brand_color", { length: 7 }).default("#7C3AED"),
     createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
@@ -51,11 +58,10 @@ export const recordings = mysqlTable(
     muxAssetId: varchar("mux_asset_id", { length: 255 }),
     muxPlaybackId: varchar("mux_playback_id", { length: 255 }),
     muxUploadId: varchar("mux_upload_id", { length: 255 }),
-    /** ID of the auto-generated subtitle track on the Mux asset */
     muxCaptionTrackId: varchar("mux_caption_track_id", { length: 255 }),
 
     // Video metadata
-    duration: int(), // seconds
+    duration: int(),
     width: int(),
     height: int(),
 
@@ -90,5 +96,25 @@ export const recordings = mysqlTable(
     index("recordings_status_idx").on(table.status),
     index("recordings_share_token_idx").on(table.shareToken),
     index("recordings_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export const comments = mysqlTable(
+  "comments",
+  {
+    id: int().autoincrement().primaryKey(),
+    recordingId: int("recording_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    name: varchar({ length: 255 }).notNull(),
+    email: varchar({ length: 255 }),
+    message: text().notNull(),
+    timestampMs: int("timestamp_ms"), // optional video timestamp for the comment
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("comments_recording_id_idx").on(table.recordingId),
   ]
 );

@@ -68,7 +68,7 @@ export default function LibraryPage() {
             {/* Thumbnail */}
             <div
               className="relative aspect-video bg-secondary cursor-pointer"
-              onClick={() => rec.status === "ready" && navigate(`/editor/${rec.id}`)}
+              onClick={() => rec.status === "ready" && rec.shareToken && navigate(`/v/${rec.shareToken}`)}
             >
               {rec.muxPlaybackId ? (
                 <img
