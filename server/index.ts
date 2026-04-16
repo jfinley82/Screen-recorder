@@ -11,8 +11,16 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
 app.use(
   cors({
-    origin: process.env.BASE_URL ?? "http://localhost:5173",
-    credentials: true, // required for cookies
+    origin: (origin, callback) => {
+      const allowed = process.env.BASE_URL ?? "http://localhost:5173";
+      if (!origin || origin === allowed || origin.startsWith("chrome-extension://")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 

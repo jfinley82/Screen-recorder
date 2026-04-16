@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screen Recorder</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="header">
+    <span class="logo">&#9210;</span>
+    <span class="title">Screen Recorder</span>
+  </div>
+
+  <!-- Login view -->
+  <div id="view-login" class="view">
+    <div class="field">
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div id="login-error" class="error hidden"></div>
+    <button id="btn-login" class="btn btn-primary">Log In</button>
+  </div>
+
+  <!-- Idle view -->
+  <div id="view-idle" class="view hidden">
+    <div class="user-row">
+      <span id="user-name" class="user-name"></span>
+      <button id="btn-logout" class="btn-link">Log out</button>
+    </div>
+    <button id="btn-record" class="btn btn-primary btn-record">
+      <span class="dot"></span> Start Recording
+    </button>
+  </div>
+
+  <!-- Recording view -->
+  <div id="view-recording" class="view hidden">
+    <div class="recording-indicator">
+      <span class="dot pulse"></span>
+      <span>Recording</span>
+      <span id="timer" class="timer">0:00</span>
+    </div>
+    <button id="btn-stop" class="btn btn-danger">&#9632; Stop &amp; Save</button>
+  </div>
+
+  <!-- Uploading view -->
+  <div id="view-uploading" class="view hidden">
+    <div class="status-msg">&#8635; Uploading to library&hellip;</div>
+    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+  </div>
+
+  <!-- Done view -->
+  <div id="view-done" class="view hidden">
+    <div class="status-msg success">&#10003; Saved to your library!</div>
+    <a id="link-library" class="btn btn-primary" target="_blank">Open Library &rarr;</a>
+    <button id="btn-again" class="btn btn-secondary">Record Another</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

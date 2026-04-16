@@ -93,6 +93,7 @@ export const authRouter = router({
         name: user.name,
         email: user.email,
         avatarUrl: user.avatarUrl,
+        token,
       };
     }),
 
