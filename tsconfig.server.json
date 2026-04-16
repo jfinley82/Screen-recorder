@@ -3,7 +3,8 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist/server",
+    "rootDir": ".",
+    "outDir": "dist",
     "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
@@ -12,6 +13,6 @@
       "~/*": ["./shared/*"]
     }
   },
-  "include": ["server", "shared"],
+  "include": ["server", "shared", "drizzle"],
   "exclude": ["node_modules", "client"]
 }
