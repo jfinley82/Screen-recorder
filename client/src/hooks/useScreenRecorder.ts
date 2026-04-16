@@ -152,12 +152,18 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
       // Webcam stream
       let webcamStream: MediaStream | null = null;
       if (opts.webcamEnabled) {
-        webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        webcamStreamRef.current = webcamStream;
-        if (webcamRef.current) {
-          webcamRef.current.srcObject = webcamStream;
-          webcamRef.current.muted = true;
-          await webcamRef.current.play();
+        try {
+          webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          webcamStreamRef.current = webcamStream;
+          if (webcamRef.current) {
+            webcamRef.current.srcObject = webcamStream;
+            webcamRef.current.muted = true;
+            await webcamRef.current.play();
+          }
+        } catch (webcamErr) {
+          console.warn("Webcam unavailable, recording without it:", webcamErr);
+          // Continue without webcam rather than aborting the recording
+          optsRef.current = { ...opts, webcamEnabled: false };
         }
       }
 
