@@ -190,9 +190,12 @@ async function startRecording(streamId, micId, cameraId, quality) {
 // ── stop recording ────────────────────────────────────────────────────────────
 document.getElementById("btn-stop").addEventListener("click", async () => {
   stopTimer();
-  showView("uploading");
-  await chrome.storage.local.set({ recordingState: "uploading" });
   chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
+  // Upload runs in background — return to main immediately so user can record again
+  await chrome.storage.local.remove(["recordingState", "recordingStart"]);
+  showView("main");
+  setMode(currentMode);
+  await loadDevices();
 });
 
 // ── record another ────────────────────────────────────────────────────────────

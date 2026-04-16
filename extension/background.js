@@ -74,6 +74,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           await chrome.storage.local.get(["token", "saveCloud", "saveLocal"]);
 
         const blob = new Blob([msg.buffer], { type: msg.mimeType });
+        chrome.action.setBadgeText({ text: "UPL" });
+        chrome.action.setBadgeBackgroundColor({ color: "#2563eb" });
 
         // Local save
         if (saveLocal) {
@@ -88,7 +90,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           await uploadRecording(blob, token);
         }
 
-        await chrome.storage.local.set({ recordingState: "done" });
+        chrome.action.setBadgeText({ text: "" });
         chrome.runtime.sendMessage({ type: "UPLOAD_DONE" });
         chrome.notifications.create("", {
           type: "basic",
