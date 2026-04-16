@@ -17,13 +17,15 @@ export async function createMuxDirectUpload(): Promise<{
 }> {
   const upload = await video.uploads.create({
     cors_origin: "*",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     new_asset_settings: {
       playback_policy: ["public"],
       mp4_support: "capped-1080p",
+      // generated_subtitles is valid at runtime but missing from SDK types
       generated_subtitles: [
         { language_code: "en", name: "English (auto-generated)" },
       ],
-    },
+    } as any,
   });
 
   return { uploadId: upload.id, uploadUrl: upload.url };

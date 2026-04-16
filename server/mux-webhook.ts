@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import Mux from "@mux/mux-node";
+import { mux } from "./mux.js";
 import { db } from "./db.js";
 import { recordings } from "../drizzle/schema.js";
 import { eq } from "drizzle-orm";
@@ -8,8 +8,8 @@ const webhookSecret = process.env.MUX_WEBHOOK_SECRET!;
 
 export async function muxWebhookHandler(req: Request, res: Response) {
   try {
-    // Verify the webhook signature
-    Mux.Webhooks.verifySignature(
+    // Verify the webhook signature (v9 instance method)
+    mux.webhooks.verifySignature(
       req.body as Buffer,
       req.headers as Record<string, string>,
       webhookSecret
