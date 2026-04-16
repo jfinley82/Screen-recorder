@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 
-export type UploadState = "idle" | "uploading" | "ingesting" | "polling" | "done" | "error";
+export type UploadState = "idle" | "uploading" | "processing" | "done" | "error";
 
 export interface UseUploadReturn {
   uploadState: UploadState;
@@ -17,9 +17,9 @@ export function useUpload(): UseUploadReturn {
   const [recordingId, setRecordingId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const presign = trpc.upload.presign.useMutation();
-  const ingestToMux = trpc.upload.ingestToMux.useMutation();
+  const createMuxUpload = trpc.upload.createMuxUpload.useMutation();
   const createRecording = trpc.recordings.create.useMutation();
+  const syncUpload = trpc.recordings.syncUpload.useMutation();
 
   const upload = useCallback(
     async (blob: Blob, title = "Untitled Recording"): Promise<number | null> => {
@@ -28,37 +28,24 @@ export function useUpload(): UseUploadReturn {
       setUploadError(null);
 
       try {
-        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-        const filename = `recording.${ext}`;
+        // Step 1 — get a Mux Direct Upload URL
+        const { uploadId, uploadUrl } = await createMuxUpload.mutateAsync();
 
-        // Step 1: Get presigned URL
-        const { key, uploadUrl, s3Url: _s3Url } = await presign.mutateAsync({
-          filename,
-          contentType: blob.type || "video/webm",
-        });
+        // Step 2 — upload the blob directly to Mux (with progress)
+        await uploadToMux(uploadUrl, blob, (pct) =>
+          setProgress(Math.round(pct * 85))
+        );
 
-        // Step 2: Upload directly to S3 with XHR so we can track progress
-        await uploadToS3(uploadUrl, blob, (pct) => setProgress(Math.round(pct * 80)));
+        setProgress(85);
+        setUploadState("processing");
 
-        setProgress(80);
-        setUploadState("ingesting");
-
-        // Step 3: Ingest into Mux
-        const { assetId, playbackId, s3Bucket } = await ingestToMux.mutateAsync({
-          s3Key: key,
-          title,
-        });
+        // Step 3 — create the recording row immediately (status: uploading)
+        const rec = await createRecording.mutateAsync({ title, muxUploadId: uploadId });
 
         setProgress(90);
 
-        // Step 4: Create the recording record in our DB
-        const rec = await createRecording.mutateAsync({
-          title,
-          s3Key: key,
-          s3Bucket,
-          muxAssetId: assetId,
-          muxPlaybackId: playbackId,
-        });
+        // Step 4 — poll until Mux links the upload to an asset ID (usually <5s)
+        await pollSyncUpload(rec.id, syncUpload.mutateAsync);
 
         setProgress(100);
         setUploadState("done");
@@ -71,13 +58,14 @@ export function useUpload(): UseUploadReturn {
         return null;
       }
     },
-    [presign, ingestToMux, createRecording]
+    [createMuxUpload, createRecording, syncUpload]
   );
 
   return { uploadState, progress, recordingId, uploadError, upload };
 }
 
-function uploadToS3(
+/** PUT the blob directly to the Mux upload URL */
+function uploadToMux(
   url: string,
   blob: Blob,
   onProgress: (pct: number) => void
@@ -85,15 +73,31 @@ function uploadToS3(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", blob.type || "video/webm");
+    // Mux expects no Content-Type header for direct uploads
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`S3 upload failed: ${xhr.status}`));
+      else reject(new Error(`Mux upload failed: ${xhr.status}`));
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));
     xhr.send(blob);
   });
+}
+
+/** Poll syncUpload until Mux has assigned an asset ID (max ~30s) */
+async function pollSyncUpload(
+  id: number,
+  syncFn: (input: { id: number }) => Promise<{ muxAssetId: string | null } | null | undefined>
+): Promise<void> {
+  const MAX_ATTEMPTS = 15;
+  const DELAY_MS = 2000;
+
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const rec = await syncFn({ id });
+    if (rec?.muxAssetId) return;
+    await new Promise((r) => setTimeout(r, DELAY_MS));
+  }
+  // Don't throw — the webhook will update the DB asynchronously as a fallback
 }

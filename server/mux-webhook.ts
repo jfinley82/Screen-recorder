@@ -22,6 +22,18 @@ export async function muxWebhookHandler(req: Request, res: Response) {
   const event = JSON.parse((req.body as Buffer).toString());
   const { type, data } = event;
 
+  // Upload finished → Mux created the asset. Wire the asset ID to our recording.
+  if (type === "video.upload.asset.created") {
+    const uploadId: string = data.id;
+    const assetId: string = data.asset_id;
+    if (assetId) {
+      await db
+        .update(recordings)
+        .set({ muxAssetId: assetId, status: "processing" })
+        .where(eq(recordings.muxUploadId, uploadId));
+    }
+  }
+
   if (type === "video.asset.ready") {
     const assetId: string = data.id;
     const playbackId: string =

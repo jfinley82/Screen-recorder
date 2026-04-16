@@ -5,7 +5,7 @@ import { db } from "../db.js";
 import { recordings } from "../../drizzle/schema.js";
 import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { getMuxAsset, video } from "../mux.js";
+import { getMuxAsset, getMuxUpload, video } from "../mux.js";
 import type { Context } from "../context.js";
 
 const t = initTRPC.context<Context>().create({ transformer: superjson });
@@ -109,26 +109,20 @@ export const recordingsRouter = router({
       return rec;
     }),
 
-  /** Create a recording record after the browser has finished uploading */
+  /** Create a recording record immediately after the browser starts uploading to Mux */
   create: protectedProcedure
     .input(
       z.object({
         title: z.string().optional(),
-        s3Key: z.string(),
-        s3Bucket: z.string(),
-        muxAssetId: z.string(),
-        muxPlaybackId: z.string().optional(),
+        muxUploadId: z.string(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const [result] = await db.insert(recordings).values({
         userId: ctx.userId,
         title: input.title ?? "Untitled Recording",
-        status: "processing",
-        s3Key: input.s3Key,
-        s3Bucket: input.s3Bucket,
-        muxAssetId: input.muxAssetId,
-        muxPlaybackId: input.muxPlaybackId,
+        status: "uploading",
+        muxUploadId: input.muxUploadId,
         shareToken: randomUUID().replace(/-/g, ""),
       });
 
@@ -138,6 +132,43 @@ export const recordingsRouter = router({
         .where(eq(recordings.id, result.insertId))
         .limit(1);
       return rec;
+    }),
+
+  /**
+   * Poll Mux until the upload has an asset ID, then kick off status sync.
+   * Call this after the browser finishes uploading.
+   */
+  syncUpload: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertOwner(input.id, ctx.userId);
+
+      const [rec] = await db
+        .select()
+        .from(recordings)
+        .where(eq(recordings.id, input.id))
+        .limit(1);
+
+      if (!rec?.muxUploadId) return rec;
+
+      // Already have an asset ID — nothing to do
+      if (rec.muxAssetId) return rec;
+
+      const upload = await getMuxUpload(rec.muxUploadId);
+
+      if (upload.asset_id) {
+        await db
+          .update(recordings)
+          .set({ muxAssetId: upload.asset_id, status: "processing" })
+          .where(eq(recordings.id, input.id));
+      }
+
+      const [updated] = await db
+        .select()
+        .from(recordings)
+        .where(eq(recordings.id, input.id))
+        .limit(1);
+      return updated;
     }),
 
   /** Update title */
