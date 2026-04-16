@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate, Link } from "react-router-dom";
 import { Video, Library, Settings, LogOut } from "lucide-react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import RecordPage from "./pages/RecordPage";
@@ -7,6 +7,7 @@ import EditorPage from "./pages/EditorPage";
 import ViewerPage from "./pages/ViewerPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import ProfilePage from "./pages/ProfilePage";
 import { Loader2 } from "lucide-react";
 
 // ── Protected route guard ─────────────────────────────────────────────────────
@@ -98,9 +99,9 @@ function Sidebar() {
       {/* Bottom: user + logout */}
       <div className="flex flex-col items-center gap-2">
         {user && (
-          <div title={`${user.name}\n${user.email}`}>
+          <Link to="/profile" title={`${user.name} — Edit profile`}>
             <UserAvatar name={user.name} />
-          </div>
+          </Link>
         )}
         <button
           onClick={logout}
@@ -146,10 +147,8 @@ export default function App() {
                     <Route path="record" element={<RecordPage />} />
                     <Route path="library" element={<LibraryPage />} />
                     <Route path="editor/:id" element={<EditorPage />} />
-                    <Route
-                      path="settings"
-                      element={<div className="p-8 text-muted-foreground">Settings coming soon</div>}
-                    />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="settings" element={<ProfilePage />} />
                   </Routes>
                 </Layout>
               </RequireAuth>

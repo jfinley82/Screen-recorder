@@ -1,4 +1,5 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { Copy, Check } from "lucide-react";
 import type { TranscriptSegment } from "~/types";
 import { formatMs, cn } from "@/lib/utils";
 
@@ -10,6 +11,14 @@ interface Props {
 
 export function TranscriptPanel({ segments, currentTimeMs, onSeek }: Props) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    const text = segments.map((s) => s.text).join(" ");
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Auto-scroll the active segment into view
   useEffect(() => {
@@ -33,7 +42,13 @@ export function TranscriptPanel({ segments, currentTimeMs, onSeek }: Props) {
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Transcript
         </p>
-        <span className="text-xs text-muted-foreground">{segments.length} segments</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
       </div>
       <div className="max-h-56 overflow-y-auto p-2 space-y-0.5">
         {segments.map((seg, i) => (
