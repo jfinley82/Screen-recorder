@@ -3,7 +3,7 @@ import mysql from "mysql2/promise";
 import * as schema from "../drizzle/schema.js";
 
 const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL!,
+  uri: (process.env.DATABASE_URL || process.env.MYSQL_URL)!,
   waitForConnections: true,
   connectionLimit: 10,
 });
