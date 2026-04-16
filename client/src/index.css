@@ -1,43 +1,62 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 224 71% 4%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --border: 220 13% 91%;
-    --ring: 262 83% 58%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 224 71% 4%;
-    --foreground: 210 20% 98%;
-    --card: 224 71% 6%;
-    --card-foreground: 210 20% 98%;
-    --primary: 263 70% 65%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 217 10% 65%;
-    --border: 215 28% 17%;
-    --ring: 263 70% 65%;
-  }
+/* Map Tailwind utility names to our CSS custom properties.
+   "inline" means the generated classes reference the vars at runtime,
+   enabling dark-mode overrides and opacity modifiers like bg-primary/20. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
 }
 
 @layer base {
-  * {
-    @apply border-border;
+  :root {
+    --background: hsl(0 0% 100%);
+    --foreground: hsl(224 71% 4%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(224 71% 4%);
+    --primary: hsl(262 83% 58%);
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(220 14% 96%);
+    --secondary-foreground: hsl(224 71% 4%);
+    --muted: hsl(220 14% 96%);
+    --muted-foreground: hsl(220 9% 46%);
+    --border: hsl(220 13% 91%);
+    --ring: hsl(262 83% 58%);
+    --radius: 0.5rem;
   }
+
+  .dark {
+    --background: hsl(224 71% 4%);
+    --foreground: hsl(210 20% 98%);
+    --card: hsl(224 71% 6%);
+    --card-foreground: hsl(210 20% 98%);
+    --primary: hsl(263 70% 65%);
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(215 28% 17%);
+    --secondary-foreground: hsl(210 20% 98%);
+    --muted: hsl(215 28% 17%);
+    --muted-foreground: hsl(217 10% 65%);
+    --border: hsl(215 28% 17%);
+    --ring: hsl(263 70% 65%);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: "Inter", system-ui, -apple-system, sans-serif;
   }
 }
@@ -51,7 +70,7 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: var(--border);
   border-radius: 3px;
 }
 
