@@ -111,23 +111,24 @@ export default function RecordPage() {
           </div>
         )}
 
-        {/* Live canvas preview */}
-        {isActive && (
-          <div className="relative w-full max-w-3xl rounded-xl overflow-hidden border border-border shadow-lg bg-black">
-            <canvas
-              ref={canvasPreviewRef}
-              className="w-full"
-              style={{ aspectRatio: preset.aspectRatio }}
+        {/* Live canvas preview — always mounted so previewRef is never null */}
+        <div className={cn(
+          "relative w-full max-w-3xl rounded-xl overflow-hidden border border-border shadow-lg bg-black",
+          !isActive && "hidden"
+        )}>
+          <canvas
+            ref={canvasPreviewRef}
+            className="w-full"
+            style={{ aspectRatio: preset.aspectRatio }}
+          />
+          {webcamEnabled && isActive && (
+            <WebcamPreview
+              videoRef={webcamVideoRef}
+              shape={webcamShape}
+              size={webcamSize}
             />
-            {webcamEnabled && (
-              <WebcamPreview
-                videoRef={webcamVideoRef}
-                shape={webcamShape}
-                size={webcamSize}
-              />
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Done state — upload */}
         {recorder.state === "done" && (
