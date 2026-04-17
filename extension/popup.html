@@ -2,14 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Screen Recorder</title>
+  <title>ScreenClips</title>
   <link rel="stylesheet" href="popup.css" />
+  <style>
+    .rec-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+    .rec-dot-anim {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #e53e3e;
+      flex-shrink: 0;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
+    .rec-timer { font-size: 1.1rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; flex: 1; }
+    .btn-icon {
+      background: #1c1c1c; border: 1px solid #333; border-radius: 6px;
+      color: #ccc; cursor: pointer; padding: 6px 10px; font-size: 13px;
+      transition: background .15s;
+    }
+    .btn-icon:hover { background: #2a2a2a; }
+    .btn-icon.muted { color: #fc8181; border-color: #555; }
+  </style>
 </head>
 <body>
 
   <!-- Login view -->
   <div id="view-login" class="view hidden">
-    <div class="brand">&#9210; Screen Recorder</div>
+    <div class="brand">&#9210; ScreenClips</div>
     <div class="field">
       <label>Email</label>
       <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -22,53 +46,40 @@
     <button id="btn-login" class="btn btn-primary">Log In</button>
   </div>
 
-  <!-- Main / idle view -->
+  <!-- Settings view -->
   <div id="view-main" class="view hidden">
-
     <div class="topbar">
-      <span class="brand-sm">&#9210; Screen Recorder</span>
+      <span class="brand-sm">&#9210; ScreenClips</span>
       <div style="display:flex;gap:10px;align-items:center">
         <a id="link-lib-main" class="btn-link" target="_blank">Library</a>
         <button id="btn-logout" class="btn-link">Log out</button>
       </div>
     </div>
 
-    <!-- Mode tabs -->
     <div class="section-label">Recording Mode</div>
     <div class="mode-grid">
       <button class="mode-btn active" data-mode="desktop">
-        <span class="mode-icon">🖥</span>
-        <span>Desktop</span>
+        <span class="mode-icon">🖥</span><span>Desktop</span>
       </button>
       <button class="mode-btn" data-mode="tab">
-        <span class="mode-icon">⬜</span>
-        <span>This Tab</span>
+        <span class="mode-icon">⬜</span><span>This Tab</span>
       </button>
       <button class="mode-btn" data-mode="camera">
-        <span class="mode-icon">📷</span>
-        <span>Camera</span>
+        <span class="mode-icon">📷</span><span>Camera</span>
       </button>
       <button class="mode-btn" data-mode="desktop+camera">
-        <span class="mode-icon">🖥+📷</span>
-        <span>Cam Overlay</span>
+        <span class="mode-icon">🖥+📷</span><span>Cam Overlay</span>
       </button>
     </div>
 
-    <!-- Microphone -->
     <div class="section-label">Microphone</div>
-    <select id="select-mic" class="select">
-      <option value="">No Microphone</option>
-    </select>
+    <select id="select-mic" class="select"><option value="">No Microphone</option></select>
 
-    <!-- Camera (hidden in desktop/tab-only modes) -->
     <div id="camera-row">
       <div class="section-label">Camera</div>
-      <select id="select-camera" class="select">
-        <option value="">No Camera</option>
-      </select>
+      <select id="select-camera" class="select"><option value="">No Camera</option></select>
     </div>
 
-    <!-- Quality -->
     <div class="quality-row">
       <div>
         <div class="section-label">Quality</div>
@@ -82,6 +93,33 @@
     <button id="btn-start" class="btn btn-primary btn-start">
       <span class="rec-dot"></span> Start Recording
     </button>
+  </div>
+
+  <!-- Recording toolbar (window shrinks to this) -->
+  <div id="view-recording" class="view hidden">
+    <div class="rec-toolbar">
+      <div class="rec-dot-anim"></div>
+      <span id="rec-timer" class="rec-timer">0:00</span>
+      <button id="btn-mute" class="btn-icon" title="Mute mic">🎙</button>
+      <button id="btn-stop" class="btn btn-primary" style="background:#c53030;width:auto;padding:7px 14px">Stop</button>
+    </div>
+  </div>
+
+  <!-- Uploading -->
+  <div id="view-uploading" class="view hidden">
+    <div style="padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div class="center-msg">Saving to library…</div>
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- Done -->
+  <div id="view-done" class="view hidden">
+    <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+      <div class="center-msg success">✓ Saved!</div>
+      <a id="link-lib-done" class="btn btn-secondary" target="_blank" style="text-align:center;text-decoration:none">Open Library</a>
+      <button id="btn-again" class="btn btn-primary btn-start"><span class="rec-dot"></span> Record Again</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
