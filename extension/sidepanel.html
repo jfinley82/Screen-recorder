@@ -5,41 +5,82 @@
   <title>ScreenClips</title>
   <link rel="stylesheet" href="popup.css" />
   <style>
-    body { width: 100%; min-width: 280px; }
-    .panel-state { display: none; padding: 14px; flex-direction: column; gap: 10px; }
-    .panel-state.active { display: flex; }
+    body { width: 100%; min-width: 0; overflow-x: hidden; }
 
-    .timer-display {
-      font-size: 2.8rem;
-      font-weight: 700;
-      text-align: center;
-      padding: 16px 0;
-      color: #fff;
-      font-variant-numeric: tabular-nums;
+    .panel-state { display: none; }
+    .panel-state.active { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+
+    /* ── Compact recording bar ── */
+    #state-recording.active {
+      padding: 0;
+      gap: 0;
     }
-    .rec-badge {
+    .rec-bar {
       display: flex;
       align-items: center;
-      justify-content: center;
       gap: 8px;
-      color: #fc8181;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      padding: 10px 12px;
+      background: #1a0a0a;
+      border-bottom: 1px solid #3a1010;
     }
-    .rec-dot-anim {
+    .rec-dot-live {
       width: 9px; height: 9px;
       border-radius: 50%;
       background: #e53e3e;
+      flex-shrink: 0;
       animation: blink 1s infinite;
     }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.15; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
+    #timer {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+      flex: 1;
     }
-    .status-msg { text-align: center; color: #aaa; font-size: 0.85rem; padding: 8px 0; }
-    .done-check { font-size: 3rem; text-align: center; padding: 16px 0; }
+    .icon-btn {
+      background: none;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #aaa;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 13px;
+      line-height: 1;
+      transition: all .15s;
+    }
+    .icon-btn:hover { border-color: #666; color: #fff; }
+    .icon-btn.active { border-color: #e53e3e; color: #fc8181; }
+    .btn-stop-sm {
+      background: #c53030;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-stop-sm:hover { background: #9b2c2c; }
+
+    /* Collapsed body: only rec-bar visible */
+    body.collapsed .panel-expand { display: none; }
+    .panel-expand {
+      padding: 8px 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .collapse-hint {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      padding-top: 4px;
+    }
+
+    /* Upload / done */
+    .center-area { text-align: center; padding: 10px 0; }
+    .done-icon { font-size: 2.4rem; }
   </style>
 </head>
 <body>
@@ -59,11 +100,11 @@
     <button id="btn-login" class="btn btn-primary">Log In</button>
   </div>
 
-  <!-- Ready (settings) -->
+  <!-- Settings -->
   <div id="state-ready" class="panel-state">
     <div class="topbar">
       <span class="brand-sm">&#9210; ScreenClips</span>
-      <div style="display:flex;gap:10px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center">
         <a id="link-lib" class="btn-link" target="_blank">Library</a>
         <button id="btn-logout" class="btn-link">Log out</button>
       </div>
@@ -71,34 +112,18 @@
 
     <div class="section-label">Recording Mode</div>
     <div class="mode-grid">
-      <button class="mode-btn active" data-mode="desktop">
-        <span class="mode-icon">🖥</span>
-        <span>Desktop</span>
-      </button>
-      <button class="mode-btn" data-mode="tab">
-        <span class="mode-icon">⬜</span>
-        <span>This Tab</span>
-      </button>
-      <button class="mode-btn" data-mode="camera">
-        <span class="mode-icon">📷</span>
-        <span>Camera</span>
-      </button>
-      <button class="mode-btn" data-mode="desktop+camera">
-        <span class="mode-icon">🖥+📷</span>
-        <span>Cam Overlay</span>
-      </button>
+      <button class="mode-btn active" data-mode="desktop"><span class="mode-icon">🖥</span><span>Desktop</span></button>
+      <button class="mode-btn" data-mode="tab"><span class="mode-icon">⬜</span><span>This Tab</span></button>
+      <button class="mode-btn" data-mode="camera"><span class="mode-icon">📷</span><span>Camera</span></button>
+      <button class="mode-btn" data-mode="desktop+camera"><span class="mode-icon">🖥+📷</span><span>Cam Overlay</span></button>
     </div>
 
     <div class="section-label">Microphone</div>
-    <select id="select-mic" class="select">
-      <option value="">No Microphone</option>
-    </select>
+    <select id="select-mic" class="select"><option value="">No Microphone</option></select>
 
     <div id="camera-row">
       <div class="section-label">Camera</div>
-      <select id="select-camera" class="select">
-        <option value="">No Camera</option>
-      </select>
+      <select id="select-camera" class="select"><option value="">No Camera</option></select>
     </div>
 
     <div class="quality-row">
@@ -116,40 +141,31 @@
     </button>
   </div>
 
-  <!-- Recording -->
+  <!-- Recording — compact bar + collapsible body -->
   <div id="state-recording" class="panel-state">
-    <div class="topbar">
-      <span class="brand-sm">&#9210; ScreenClips</span>
+    <div class="rec-bar">
+      <div class="rec-dot-live"></div>
+      <span id="timer">0:00</span>
+      <button id="btn-mute" class="icon-btn" title="Mute mic">🎙</button>
+      <button id="btn-collapse" class="icon-btn" title="Collapse panel">◀</button>
+      <button id="btn-stop" class="btn-stop-sm">Stop</button>
     </div>
-    <div class="rec-badge">
-      <div class="rec-dot-anim"></div> Recording
+    <div class="panel-expand">
+      <div class="collapse-hint">← drag panel edge to hide from recording</div>
     </div>
-    <div id="timer" class="timer-display">0:00</div>
-    <button id="btn-stop" class="btn btn-primary" style="background:#c53030">
-      Stop Recording
-    </button>
   </div>
 
   <!-- Uploading -->
   <div id="state-uploading" class="panel-state">
-    <div class="topbar">
-      <span class="brand-sm">&#9210; ScreenClips</span>
-    </div>
-    <div class="status-msg">Saving to your library…</div>
-    <div class="progress-bar">
-      <div id="progress-fill" class="progress-fill"></div>
-    </div>
+    <div class="center-area" style="color:#aaa;font-size:13px">Saving to your library…</div>
+    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
   </div>
 
   <!-- Done -->
-  <div id="state-done" class="panel-state">
-    <div class="topbar">
-      <span class="brand-sm">&#9210; ScreenClips</span>
-    </div>
-    <div class="done-check">✅</div>
-    <div class="status-msg">Recording saved to your library!</div>
-    <a id="link-lib-done" class="btn btn-primary" target="_blank"
-       style="text-decoration:none;text-align:center">Open Library</a>
+  <div id="state-done" class="panel-state" style="text-align:center">
+    <div class="done-icon">✅</div>
+    <div style="color:#aaa;font-size:13px">Recording saved!</div>
+    <a id="link-lib-done" class="btn btn-primary" target="_blank" style="text-decoration:none;text-align:center">Open Library</a>
     <button id="btn-again" class="btn btn-secondary">Record Again</button>
   </div>
 
