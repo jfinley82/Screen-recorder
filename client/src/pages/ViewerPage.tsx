@@ -24,6 +24,16 @@ export default function ViewerPage() {
   const [commentMsg, setCommentMsg] = useState("");
   const [commentSubmitted, setCommentSubmitted] = useState(false);
 
+  const viewIdRef = useRef<number | null>(null);
+  const watchSecondsRef = useRef(0);
+
+  const trackView = trpc.views.trackView.useMutation({
+    onSuccess: (data) => {
+      if (data.viewId) viewIdRef.current = data.viewId;
+    },
+  });
+  const updateView = trpc.views.updateView.useMutation();
+
   const { data: recording, isLoading } = trpc.recordings.getByToken.useQuery(
     { token: token! },
     { enabled: !!token }
@@ -42,6 +52,26 @@ export default function ViewerPage() {
       setTimeout(() => setCommentSubmitted(false), 3000);
     },
   });
+
+  // Track view on load
+  useEffect(() => {
+    if (!token || !recording?.isPublic) return;
+    trackView.mutate({ shareToken: token });
+  }, [token, recording?.id]);
+
+  // Heartbeat every 15s while video is playing
+  useEffect(() => {
+    if (!recording) return;
+    const durationSec = recording.duration ?? 1;
+    const interval = setInterval(() => {
+      if (viewIdRef.current == null) return;
+      const secs = Math.round(currentTimeMs / 1000);
+      watchSecondsRef.current = Math.max(watchSecondsRef.current, secs);
+      const pct = Math.min(100, Math.round((secs / durationSec) * 100));
+      updateView.mutate({ viewId: viewIdRef.current, watchSeconds: watchSecondsRef.current, percentWatched: pct });
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [recording?.id, currentTimeMs]);
 
   useEffect(() => {
     if (!recording?.muxPlaybackId || !recording.muxCaptionTrackId) return;

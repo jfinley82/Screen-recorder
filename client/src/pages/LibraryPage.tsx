@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Play, Edit2, Trash2, Share2, Clock, Copy, Check } from "lucide-react";
+import { Loader2, Play, Edit2, Trash2, Share2, Clock, Check, BarChart2, X, Eye } from "lucide-react";
 import { formatSec, cn } from "@/lib/utils";
 
 export default function LibraryPage() {
@@ -10,6 +10,12 @@ export default function LibraryPage() {
   const deleteRec = trpc.recordings.delete.useMutation({ onSuccess: () => refetch() });
   const updateSharing = trpc.recordings.updateSharing.useMutation({ onSuccess: () => refetch() });
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [analyticsId, setAnalyticsId] = useState<number | null>(null);
+
+  const { data: analytics, isLoading: analyticsLoading } = trpc.views.getAnalytics.useQuery(
+    { recordingId: analyticsId! },
+    { enabled: analyticsId != null }
+  );
 
   const handleCopyLink = (rec: { id: number; shareToken: string | null }) => {
     const url = `${window.location.origin}/v/${rec.shareToken}`;
@@ -54,6 +60,64 @@ export default function LibraryPage() {
 
   return (
     <div className="p-6">
+      {/* Analytics modal */}
+      {analyticsId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-2xl border border-border w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-sm">View Analytics</span>
+              </div>
+              <button onClick={() => setAnalyticsId(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              {analyticsLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : analytics ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Total Views", value: analytics.totalViews },
+                      { label: "Avg Watch", value: `${Math.floor(analytics.avgWatchSeconds / 60)}m ${analytics.avgWatchSeconds % 60}s` },
+                      { label: "Avg Watched", value: `${analytics.avgPercentWatched}%` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="bg-secondary rounded-xl p-3 text-center">
+                        <p className="text-lg font-bold">{value}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {analytics.recentViews.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Recent Views</p>
+                      <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                        {analytics.recentViews.map((v) => (
+                          <div key={v.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-secondary/50">
+                            <span className="text-muted-foreground text-xs">
+                              {new Date(v.createdAt).toLocaleDateString()} {new Date(v.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span>{Math.floor(v.watchSeconds / 60)}m {v.watchSeconds % 60}s watched</span>
+                              <span className="font-medium text-foreground">{v.percentWatched}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {analytics.recentViews.length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground py-4">No views yet — share this video to get started.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Library</h1>
         <span className="text-sm text-muted-foreground">{recordings.length} recording{recordings.length !== 1 ? "s" : ""}</span>
@@ -139,6 +203,14 @@ export default function LibraryPage() {
                   ) : (
                     <><Share2 className="w-3.5 h-3.5" /> Share</>
                   )}
+                </button>
+
+                <button
+                  onClick={() => setAnalyticsId(rec.id)}
+                  title="View analytics"
+                  className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
                 </button>
 
                 <button

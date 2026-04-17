@@ -1,4 +1,4 @@
-const APP_URL = "https://screen-recorder-production-a0f1.up.railway.app";
+const APP_URL = "https://screenclips.co";
 
 // ── view helpers ────────────────────────────────────────────────────────────
 const views = ["login", "main", "recording", "uploading", "done"];
@@ -190,9 +190,12 @@ async function startRecording(streamId, micId, cameraId, quality) {
 // ── stop recording ────────────────────────────────────────────────────────────
 document.getElementById("btn-stop").addEventListener("click", async () => {
   stopTimer();
-  showView("uploading");
-  await chrome.storage.local.set({ recordingState: "uploading" });
   chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
+  // Upload runs in background — return to main immediately so user can record again
+  await chrome.storage.local.remove(["recordingState", "recordingStart"]);
+  showView("main");
+  setMode(currentMode);
+  await loadDevices();
 });
 
 // ── record another ────────────────────────────────────────────────────────────

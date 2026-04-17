@@ -2,9 +2,10 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import superjson from "superjson";
 import { db } from "../db.js";
-import { comments, recordings } from "../../drizzle/schema.js";
+import { comments, recordings, users } from "../../drizzle/schema.js";
 import { eq, desc } from "drizzle-orm";
 import type { Context } from "../context.js";
+import { sendCommentNotification } from "../email.js";
 
 const t = initTRPC.context<Context>().create({ transformer: superjson });
 const router = t.router;
@@ -42,7 +43,7 @@ export const commentsRouter = router({
     )
     .mutation(async ({ input }) => {
       const [rec] = await db
-        .select({ id: recordings.id, isPublic: recordings.isPublic })
+        .select({ id: recordings.id, isPublic: recordings.isPublic, userId: recordings.userId, title: recordings.title, shareToken: recordings.shareToken })
         .from(recordings)
         .where(eq(recordings.shareToken, input.shareToken))
         .limit(1);
@@ -56,6 +57,26 @@ export const commentsRouter = router({
         message: input.message,
         timestampMs: input.timestampMs,
       });
+
+      // Email coach about new comment
+      if (process.env.RESEND_API_KEY) {
+        const [owner] = await db
+          .select({ email: users.email, name: users.name })
+          .from(users)
+          .where(eq(users.id, rec.userId))
+          .limit(1);
+
+        if (owner) {
+          sendCommentNotification({
+            coachEmail: owner.email,
+            coachName: owner.name,
+            recordingTitle: rec.title,
+            shareToken: rec.shareToken!,
+            commenterName: input.name,
+            message: input.message,
+          }).catch(console.error);
+        }
+      }
 
       return { ok: true };
     }),
