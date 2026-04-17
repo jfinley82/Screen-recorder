@@ -1,19 +1,26 @@
 const APP_URL = "https://screenclips.co";
 
-// ── Views ─────────────────────────────────────────────────────────────────────
-const VIEWS = ["login", "main", "recording", "uploading", "done"];
-function showView(name) {
-  VIEWS.forEach((v) => document.getElementById(`view-${v}`).classList.toggle("hidden", v !== name));
-  // Shrink window to toolbar during recording, restore otherwise
-  chrome.windows?.getCurrent?.({}, (win) => {
-    if (!win?.id) return;
-    if (name === "recording") {
-      chrome.windows.update(win.id, { width: 340, height: 60, top: 20, left: 20 });
-    } else if (name === "uploading" || name === "done") {
-      chrome.windows.update(win.id, { width: 320, height: 130 });
-    }
+// ── State ─────────────────────────────────────────────────────────────────────
+const STATES = ["login", "ready", "recording", "uploading", "done"];
+function showState(name) {
+  STATES.forEach((s) => {
+    const el = document.getElementById(`state-${s}`);
+    el.classList.toggle("active", s === name);
   });
 }
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+let timerInt = null;
+function startTimer() {
+  const el = document.getElementById("timer");
+  const t0 = Date.now();
+  el.textContent = "0:00";
+  timerInt = setInterval(() => {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }, 500);
+}
+function stopTimer() { clearInterval(timerInt); timerInt = null; }
 
 // ── Devices ───────────────────────────────────────────────────────────────────
 async function loadDevices() {
@@ -28,6 +35,9 @@ async function loadDevices() {
   const micSel = document.getElementById("select-mic");
   const camSel = document.getElementById("select-camera");
 
+  while (micSel.options.length > 1) micSel.remove(1);
+  while (camSel.options.length > 1) camSel.remove(1);
+
   devices.filter((d) => d.kind === "audioinput").forEach((d) =>
     micSel.appendChild(new Option(d.label || `Microphone ${micSel.options.length}`, d.deviceId))
   );
@@ -36,10 +46,10 @@ async function loadDevices() {
   );
 
   const saved = await chrome.storage.local.get(["micId", "cameraId", "quality", "mode"]);
-  if (saved.micId)    micSel.value = saved.micId;
-  if (saved.cameraId) camSel.value = saved.cameraId;
-  if (saved.quality)  document.getElementById("select-quality").value = saved.quality;
-  if (saved.mode)     setMode(saved.mode);
+  if (saved.micId)     micSel.value = saved.micId;
+  if (saved.cameraId)  camSel.value = saved.cameraId;
+  if (saved.quality)   document.getElementById("select-quality").value = saved.quality;
+  if (saved.mode)      setMode(saved.mode);
 }
 
 // ── Mode ──────────────────────────────────────────────────────────────────────
@@ -61,7 +71,7 @@ document.getElementById("select-quality").addEventListener("change", (e) => chro
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 document.getElementById("btn-login").addEventListener("click", async () => {
-  const email   = document.getElementById("login-email").value.trim();
+  const email    = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
   const errorEl  = document.getElementById("login-error");
   const btn      = document.getElementById("btn-login");
@@ -69,7 +79,8 @@ document.getElementById("btn-login").addEventListener("click", async () => {
   btn.disabled = true; btn.textContent = "Logging in…";
   try {
     const res  = await fetch(`${APP_URL}/trpc/auth.login`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ json: { email, password } }),
     });
     const body = await res.json();
@@ -77,7 +88,7 @@ document.getElementById("btn-login").addEventListener("click", async () => {
     const data = body.result.data.json;
     if (!data.token) throw new Error("Server not yet updated — please deploy latest version.");
     await chrome.storage.local.set({ token: data.token, user: { name: data.name } });
-    await goMain();
+    await goReady();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove("hidden");
@@ -88,36 +99,13 @@ document.getElementById("btn-login").addEventListener("click", async () => {
 
 document.getElementById("btn-logout").addEventListener("click", async () => {
   await chrome.storage.local.clear();
-  showView("login");
+  showState("login");
 });
 
 // ── Recording ─────────────────────────────────────────────────────────────────
 let recorder   = null;
 let chunks     = [];
 let animHandle = null;
-let timerInt   = null;
-let micTrackRef = null;
-let micMuted   = false;
-
-function startTimer() {
-  const el = document.getElementById("rec-timer");
-  const t0 = Date.now();
-  el.textContent = "0:00";
-  timerInt = setInterval(() => {
-    const s = Math.floor((Date.now() - t0) / 1000);
-    el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  }, 500);
-}
-function stopTimer() { clearInterval(timerInt); timerInt = null; }
-
-document.getElementById("btn-mute").addEventListener("click", () => {
-  if (!micTrackRef) return;
-  micMuted = !micMuted;
-  micTrackRef.enabled = !micMuted;
-  const btn = document.getElementById("btn-mute");
-  btn.textContent = micMuted ? "🔇" : "🎙";
-  btn.classList.toggle("muted", micMuted);
-});
 
 document.getElementById("btn-start").addEventListener("click", async () => {
   const micId    = document.getElementById("select-mic").value;
@@ -126,6 +114,7 @@ document.getElementById("btn-start").addEventListener("click", async () => {
   await chrome.storage.local.set({ mode: currentMode, micId, cameraId, quality });
 
   try {
+    // Screen capture (triggers Chrome's built-in screen picker)
     let screenStream = null;
     if (currentMode !== "camera") {
       screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -134,6 +123,7 @@ document.getElementById("btn-start").addEventListener("click", async () => {
       });
     }
 
+    // Microphone (separate getUserMedia so screen picker stays clean)
     let micTrack = null;
     if (micId) {
       try {
@@ -141,10 +131,10 @@ document.getElementById("btn-start").addEventListener("click", async () => {
           audio: micId === "default" ? true : { deviceId: { exact: micId } },
         });
         micTrack = ms.getAudioTracks()[0];
-        micTrackRef = micTrack;
       } catch { /* mic unavailable */ }
     }
 
+    // Camera-only
     if (currentMode === "camera") {
       const camStream = await navigator.mediaDevices.getUserMedia({
         video: cameraId ? { deviceId: { exact: cameraId } } : true,
@@ -154,21 +144,26 @@ document.getElementById("btn-start").addEventListener("click", async () => {
       return;
     }
 
+    // Desktop + camera overlay (PiP via canvas)
     if (currentMode === "desktop+camera" && cameraId) {
       try {
         const camStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameraId } } });
-        const { stream } = buildComposite(screenStream, camStream);
-        const final = new MediaStream([...stream.getVideoTracks(), ...(micTrack ? [micTrack] : [])]);
+        const { stream: compositeStream } = buildComposite(screenStream, camStream);
+        const final = new MediaStream([
+          ...compositeStream.getVideoTracks(),
+          ...(micTrack ? [micTrack] : []),
+        ]);
         startRecording(final, quality, () => cancelAnimationFrame(animHandle));
         return;
-      } catch { /* fall through */ }
+      } catch { /* fall through to screen-only */ }
     }
 
-    const tracks = [...screenStream.getVideoTracks(), ...(micTrack ? [micTrack] : [])];
-    startRecording(new MediaStream(tracks), quality);
+    // Screen only (default)
+    const finalTracks = [...screenStream.getVideoTracks(), ...(micTrack ? [micTrack] : [])];
+    startRecording(new MediaStream(finalTracks), quality);
 
   } catch (err) {
-    if (err.name !== "NotAllowedError") alert(`Could not start: ${err.message}`);
+    if (err.name !== "NotAllowedError") alert(`Could not start recording: ${err.message}`);
   }
 });
 
@@ -178,18 +173,22 @@ function buildComposite(screenStream, cameraStream) {
   const sv     = document.createElement("video");
   const cv     = document.createElement("video");
   sv.srcObject = screenStream; cv.srcObject = cameraStream;
-  sv.muted = cv.muted = true; sv.play(); cv.play();
+  sv.muted = cv.muted = true;
+  sv.play(); cv.play();
+
   const W = 1920, H = 1080;
   canvas.width = W; canvas.height = H;
   const CAM_H = Math.round(H * 0.22), CAM_W = Math.round(CAM_H * 1.33), PAD = 18;
+
   function draw() {
     ctx.drawImage(sv, 0, 0, W, H);
     const cx = W - CAM_W - PAD, cy = H - CAM_H - PAD, r = 12;
-    ctx.save(); ctx.beginPath();
+    ctx.save();
+    ctx.beginPath();
     ctx.moveTo(cx + r, cy);
-    ctx.arcTo(cx + CAM_W, cy,         cx + CAM_W, cy + CAM_H, r);
-    ctx.arcTo(cx + CAM_W, cy + CAM_H, cx,         cy + CAM_H, r);
-    ctx.arcTo(cx,         cy + CAM_H, cx,         cy,         r);
+    ctx.arcTo(cx + CAM_W, cy,       cx + CAM_W, cy + CAM_H, r);
+    ctx.arcTo(cx + CAM_W, cy + CAM_H, cx,       cy + CAM_H, r);
+    ctx.arcTo(cx,         cy + CAM_H, cx,        cy,         r);
     ctx.arcTo(cx,         cy,         cx + CAM_W, cy,         r);
     ctx.closePath(); ctx.clip();
     ctx.drawImage(cv, cx, cy, CAM_W, CAM_H);
@@ -202,7 +201,6 @@ function buildComposite(screenStream, cameraStream) {
 
 function startRecording(stream, quality, onStop) {
   chunks = [];
-  micMuted = false;
   const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
     ? "video/webm;codecs=vp9,opus" : "video/webm";
   const bitsPerSecond = quality === "1080" ? 5_000_000 : 2_500_000;
@@ -216,10 +214,10 @@ function startRecording(stream, quality, onStop) {
   };
   recorder.start(1000);
 
-  showView("recording");
+  showState("recording");
   startTimer();
-  chrome.runtime.sendMessage({ type: "RECORDING_LIVE" });
 
+  // Auto-stop when user clicks "Stop sharing" in browser bar
   stream.getVideoTracks()[0]?.addEventListener("ended", () => {
     if (recorder?.state !== "inactive") recorder.stop();
     stopTimer();
@@ -244,8 +242,7 @@ async function trpcMutation(procedure, input, token) {
 }
 
 async function uploadRecording(blob) {
-  showView("uploading");
-  chrome.runtime.sendMessage({ type: "RECORDING_DONE" });
+  showState("uploading");
   try {
     const { token, saveLocal = false, saveCloud = true } =
       await chrome.storage.local.get(["token", "saveLocal", "saveCloud"]);
@@ -257,6 +254,7 @@ async function uploadRecording(blob) {
 
     if (saveCloud && token) {
       const { uploadId, uploadUrl } = await trpcMutation("upload.createMuxUpload", null, token);
+
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadUrl);
@@ -264,16 +262,16 @@ async function uploadRecording(blob) {
           if (e.lengthComputable)
             document.getElementById("progress-fill").style.width = `${Math.round((e.loaded / e.total) * 100)}%`;
         };
-        xhr.onload  = () => xhr.status < 300 ? resolve() : reject(new Error(`${xhr.status}`));
+        xhr.onload  = () => (xhr.status < 300 ? resolve() : reject(new Error(`${xhr.status}`)));
         xhr.onerror = () => reject(new Error("Network error"));
         xhr.send(blob);
       });
+
       const title = `Recording ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
       await trpcMutation("recordings.create", { title, muxUploadId: uploadId }, token);
     }
 
-    document.getElementById("link-lib-done").href = `${APP_URL}/library`;
-    showView("done");
+    showState("done");
     chrome.notifications.create("", {
       type: "basic",
       iconUrl: "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==",
@@ -282,29 +280,25 @@ async function uploadRecording(blob) {
     });
   } catch (err) {
     alert(`Upload failed: ${err.message}`);
-    showView("main");
+    showState("ready");
   }
 }
 
-document.getElementById("btn-again").addEventListener("click", () => {
-  chrome.windows.getCurrent?.({}, (win) => {
-    if (win?.id) chrome.windows.update(win.id, { width: 320, height: 520 });
-  });
-  showView("main");
-});
+document.getElementById("btn-again").addEventListener("click", () => showState("ready"));
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-async function goMain() {
-  document.getElementById("link-lib-main").href = `${APP_URL}/library`;
-  showView("main");
+async function goReady() {
+  document.getElementById("link-lib").href      = `${APP_URL}/library`;
+  document.getElementById("link-lib-done").href = `${APP_URL}/library`;
+  showState("ready");
   setMode("desktop");
   await loadDevices();
 }
 
 async function init() {
   const { token } = await chrome.storage.local.get(["token"]);
-  if (!token) { showView("login"); return; }
-  await goMain();
+  if (!token) { showState("login"); return; }
+  await goReady();
 }
 
 init();
