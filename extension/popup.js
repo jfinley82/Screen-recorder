@@ -1,14 +1,14 @@
 const APP_URL = "https://screenclips.co";
 
 // ── view helpers ────────────────────────────────────────────────────────────
-const views = ["login", "main", "recording", "uploading", "done"];
+const views = ["login", "main"];
 function showView(name) {
   views.forEach((v) => {
     document.getElementById(`view-${v}`).classList.toggle("hidden", v !== name);
   });
 }
 
-// ── timer ────────────────────────────────────────────────────────────────────
+// ── timer (unused — kept for reference) ──────────────────────────────────────
 let timerInterval = null;
 function startTimer(startMs) {
   const el = document.getElementById("timer");
@@ -92,18 +92,6 @@ async function init() {
 
   if (!token) { showView("login"); return; }
 
-  if (recordingState === "recording") {
-    showView("recording");
-    startTimer(recordingStart || Date.now());
-    return;
-  }
-  if (recordingState === "uploading") { showView("uploading"); return; }
-  if (recordingState === "done") {
-    showView("done");
-    document.getElementById("link-library").href = `${APP_URL}/library`;
-    return;
-  }
-
   document.getElementById("link-lib-main").href = `${APP_URL}/library`;
   showView("main");
   setMode("desktop"); // default; loadDevices restores saved mode
@@ -152,76 +140,16 @@ document.getElementById("btn-logout").addEventListener("click", async () => {
   showView("login");
 });
 
-// ── start recording ───────────────────────────────────────────────────────────
+// ── start recording — opens dedicated recorder window ─────────────────────────
 document.getElementById("btn-start").addEventListener("click", async () => {
-  const micId   = document.getElementById("select-mic").value;
+  const micId    = document.getElementById("select-mic").value;
   const cameraId = document.getElementById("select-camera").value;
   const quality  = document.getElementById("select-quality").value;
 
-  const needsDesktopPicker = currentMode === "desktop" || currentMode === "tab" || currentMode === "desktop+camera";
-
-  if (needsDesktopPicker) {
-    const sources = currentMode === "tab" ? ["tab"] : ["screen", "window"];
-    chrome.desktopCapture.chooseDesktopMedia(sources, async (streamId) => {
-      if (!streamId) return;
-      await startRecording(streamId, micId, cameraId, quality);
-    });
-  } else {
-    // Camera-only mode — no desktop picker needed
-    await startRecording(null, micId, cameraId, quality);
-  }
+  await chrome.storage.local.set({ mode: currentMode, micId, cameraId, quality });
+  chrome.runtime.sendMessage({ type: "OPEN_RECORDER" });
+  window.close();
 });
 
-async function startRecording(streamId, micId, cameraId, quality) {
-  const now = Date.now();
-  await chrome.storage.local.set({ recordingState: "recording", recordingStart: now });
-  chrome.runtime.sendMessage({
-    type: "START_RECORDING",
-    streamId,
-    mode: currentMode,
-    micId,
-    cameraId,
-    quality,
-  });
-  showView("recording");
-  startTimer(now);
-}
-
-// ── stop recording ────────────────────────────────────────────────────────────
-document.getElementById("btn-stop").addEventListener("click", async () => {
-  stopTimer();
-  chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
-  // Upload runs in background — return to main immediately so user can record again
-  await chrome.storage.local.remove(["recordingState", "recordingStart"]);
-  showView("main");
-  setMode(currentMode);
-  await loadDevices();
-});
-
-// ── record another ────────────────────────────────────────────────────────────
-document.getElementById("btn-again").addEventListener("click", async () => {
-  await chrome.storage.local.remove(["recordingState", "recordingStart"]);
-  showView("main");
-  setMode(currentMode);
-  await loadDevices();
-});
-
-// ── messages from background ──────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "UPLOAD_PROGRESS") {
-    document.getElementById("progress-fill").style.width = `${msg.percent}%`;
-  }
-  if (msg.type === "UPLOAD_DONE") {
-    stopTimer();
-    showView("done");
-    document.getElementById("link-library").href = `${APP_URL}/library`;
-  }
-  if (msg.type === "UPLOAD_ERROR") {
-    stopTimer();
-    chrome.storage.local.remove(["recordingState", "recordingStart"]);
-    showView("main");
-    alert(`Recording failed: ${msg.error}`);
-  }
-});
 
 init();
