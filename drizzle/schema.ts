@@ -99,6 +99,28 @@ export const recordings = mysqlTable(
   ]
 );
 
+// ── Video Views ───────────────────────────────────────────────────────────────
+
+export const videoViews = mysqlTable(
+  "video_views",
+  {
+    id: int().autoincrement().primaryKey(),
+    recordingId: int("recording_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    viewerIp: varchar("viewer_ip", { length: 45 }),
+    watchSeconds: int("watch_seconds").default(0).notNull(),
+    percentWatched: int("percent_watched").default(0).notNull(),
+    emailSent: boolean("email_sent").default(false).notNull(),
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index("video_views_recording_id_idx").on(table.recordingId),
+    index("video_views_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // ── Comments ──────────────────────────────────────────────────────────────────
 
 export const comments = mysqlTable(
