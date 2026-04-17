@@ -1,4 +1,4 @@
-const DEFAULT_URL = "https://screen-recorder-production-a0f1.up.railway.app";
+const DEFAULT_URL = "https://screenclips.co";
 
 async function load() {
   const { saveCloud = true, saveLocal = false, appUrl = "" } =

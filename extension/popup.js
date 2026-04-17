@@ -1,4 +1,4 @@
-const APP_URL = "https://screen-recorder-production-a0f1.up.railway.app";
+const APP_URL = "https://screenclips.co";
 
 // ── view helpers ────────────────────────────────────────────────────────────
 const views = ["login", "main", "recording", "uploading", "done"];

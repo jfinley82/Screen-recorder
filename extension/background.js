@@ -1,4 +1,4 @@
-const APP_URL = "https://screen-recorder-production-a0f1.up.railway.app";
+const APP_URL = "https://screenclips.co";
 const OFFSCREEN_URL = chrome.runtime.getURL("offscreen.html");
 
 async function ensureOffscreen() {
