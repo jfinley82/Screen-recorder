@@ -1,23 +1,22 @@
 {
   "manifest_version": 3,
   "name": "ScreenClips",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Record your screen and save directly to your ScreenClips library",
-  "permissions": ["storage", "notifications", "downloads", "tabs"],
+  "permissions": ["storage", "notifications", "downloads", "tabs", "sidePanel"],
   "host_permissions": ["https://screenclips.co/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "ScreenClips"
+    "default_title": "Open ScreenClips"
   },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
-  },
-  "web_accessible_resources": [
-    { "resources": ["recorder.html"], "matches": ["<all_urls>"] }
-  ]
+  }
 }

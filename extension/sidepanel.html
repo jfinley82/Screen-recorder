@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ScreenClips</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body { width: 100%; min-width: 280px; }
+    .panel-state { display: none; padding: 14px; flex-direction: column; gap: 10px; }
+    .panel-state.active { display: flex; }
+
+    .timer-display {
+      font-size: 2.8rem;
+      font-weight: 700;
+      text-align: center;
+      padding: 16px 0;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .rec-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #fc8181;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .rec-dot-anim {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #e53e3e;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.15; }
+    }
+    .status-msg { text-align: center; color: #aaa; font-size: 0.85rem; padding: 8px 0; }
+    .done-check { font-size: 3rem; text-align: center; padding: 16px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Login -->
+  <div id="state-login" class="panel-state">
+    <div class="brand">&#9210; ScreenClips</div>
+    <div class="field">
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div id="login-error" class="error hidden"></div>
+    <button id="btn-login" class="btn btn-primary">Log In</button>
+  </div>
+
+  <!-- Ready (settings) -->
+  <div id="state-ready" class="panel-state">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; ScreenClips</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <a id="link-lib" class="btn-link" target="_blank">Library</a>
+        <button id="btn-logout" class="btn-link">Log out</button>
+      </div>
+    </div>
+
+    <div class="section-label">Recording Mode</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" data-mode="desktop">
+        <span class="mode-icon">🖥</span>
+        <span>Desktop</span>
+      </button>
+      <button class="mode-btn" data-mode="tab">
+        <span class="mode-icon">⬜</span>
+        <span>This Tab</span>
+      </button>
+      <button class="mode-btn" data-mode="camera">
+        <span class="mode-icon">📷</span>
+        <span>Camera</span>
+      </button>
+      <button class="mode-btn" data-mode="desktop+camera">
+        <span class="mode-icon">🖥+📷</span>
+        <span>Cam Overlay</span>
+      </button>
+    </div>
+
+    <div class="section-label">Microphone</div>
+    <select id="select-mic" class="select">
+      <option value="">No Microphone</option>
+    </select>
+
+    <div id="camera-row">
+      <div class="section-label">Camera</div>
+      <select id="select-camera" class="select">
+        <option value="">No Camera</option>
+      </select>
+    </div>
+
+    <div class="quality-row">
+      <div>
+        <div class="section-label">Quality</div>
+        <select id="select-quality" class="select select-sm">
+          <option value="720">HD 720p</option>
+          <option value="1080" selected>FHD 1080p</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="btn-start" class="btn btn-primary btn-start">
+      <span class="rec-dot"></span> Start Recording
+    </button>
+  </div>
+
+  <!-- Recording -->
+  <div id="state-recording" class="panel-state">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; ScreenClips</span>
+    </div>
+    <div class="rec-badge">
+      <div class="rec-dot-anim"></div> Recording
+    </div>
+    <div id="timer" class="timer-display">0:00</div>
+    <button id="btn-stop" class="btn btn-primary" style="background:#c53030">
+      Stop Recording
+    </button>
+  </div>
+
+  <!-- Uploading -->
+  <div id="state-uploading" class="panel-state">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; ScreenClips</span>
+    </div>
+    <div class="status-msg">Saving to your library…</div>
+    <div class="progress-bar">
+      <div id="progress-fill" class="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Done -->
+  <div id="state-done" class="panel-state">
+    <div class="topbar">
+      <span class="brand-sm">&#9210; ScreenClips</span>
+    </div>
+    <div class="done-check">✅</div>
+    <div class="status-msg">Recording saved to your library!</div>
+    <a id="link-lib-done" class="btn btn-primary" target="_blank"
+       style="text-decoration:none;text-align:center">Open Library</a>
+    <button id="btn-again" class="btn btn-secondary">Record Again</button>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
