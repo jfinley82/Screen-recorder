@@ -8,17 +8,6 @@ function showView(name) {
   });
 }
 
-// ── timer (unused — kept for reference) ──────────────────────────────────────
-let timerInterval = null;
-function startTimer(startMs) {
-  const el = document.getElementById("timer");
-  timerInterval = setInterval(() => {
-    const s = Math.floor((Date.now() - startMs) / 1000);
-    el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  }, 500);
-}
-function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
-
 // ── device enumeration ───────────────────────────────────────────────────────
 async function loadDevices() {
   try {
@@ -140,14 +129,18 @@ document.getElementById("btn-logout").addEventListener("click", async () => {
   showView("login");
 });
 
-// ── start recording — opens dedicated recorder window ─────────────────────────
+// ── start recording ───────────────────────────────────────────────────────────
 document.getElementById("btn-start").addEventListener("click", async () => {
+  const { token } = await chrome.storage.local.get(["token"]);
   const micId    = document.getElementById("select-mic").value;
   const cameraId = document.getElementById("select-camera").value;
   const quality  = document.getElementById("select-quality").value;
 
   await chrome.storage.local.set({ mode: currentMode, micId, cameraId, quality });
-  chrome.runtime.sendMessage({ type: "OPEN_RECORDER" });
+  chrome.runtime.sendMessage({
+    type: "START_RECORDING",
+    settings: { mode: currentMode, micId, cameraId, quality, token },
+  });
   window.close();
 });
 

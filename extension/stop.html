@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ScreenClips Recording</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body { width: 300px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .rec-row { display: flex; align-items: center; gap: 10px; }
+    .rec-dot-anim { width: 10px; height: 10px; border-radius: 50%; background: #e53e3e; animation: blink 1s infinite; flex-shrink: 0; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.15; } }
+    .timer-lg { font-size: 1.6rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; flex: 1; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="rec-row">
+    <div class="rec-dot-anim"></div>
+    <span style="color:#aaa;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Recording</span>
+    <span id="timer" class="timer-lg">0:00</span>
+  </div>
+  <button id="btn-stop" class="btn btn-primary" style="background:#c53030">Stop &amp; Save</button>
+  <script src="stop.js"></script>
+</body>
+</html>
