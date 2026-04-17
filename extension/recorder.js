@@ -23,6 +23,10 @@ function stopTimer() { clearInterval(timerInt); }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 document.getElementById("btn-start").addEventListener("click", async () => {
+  // Minimize this window so the screen picker is fully visible
+  chrome.windows?.getCurrent?.({}, (win) => {
+    if (win?.id) chrome.windows.update(win.id, { state: "minimized" });
+  });
   const { mode = "desktop", micId = "", cameraId = "", quality = "1080" } =
     await chrome.storage.local.get(["mode", "micId", "cameraId", "quality"]);
 
@@ -146,6 +150,10 @@ function startRecording(stream, quality, onStop) {
 
   show("recording");
   startTimer();
+  // Restore window now that picker is done
+  chrome.windows?.getCurrent?.({}, (win) => {
+    if (win?.id) chrome.windows.update(win.id, { state: "normal" });
+  });
 
   // Auto-stop if screen share ends (user clicks "Stop sharing" in browser bar)
   stream.getVideoTracks()[0]?.addEventListener("ended", () => {

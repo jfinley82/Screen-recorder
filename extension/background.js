@@ -5,7 +5,9 @@ chrome.runtime.onMessage.addListener((msg) => {
       type: "popup",
       width: 320,
       height: 180,
-      focused: true,
+      top: 20,
+      left: 20,
+      focused: false, // don't steal focus so screen picker can stay in front
     });
   }
   return false;
