@@ -50,5 +50,4 @@ if (process.env.NODE_ENV === "production") {
 
 app.listen(PORT, () => {
   console.log(`[server] running on http://localhost:${PORT}`);
-  import("./repair-mux.js").then(({ repairStuckRecordings }) => repairStuckRecordings());
 });
