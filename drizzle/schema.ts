@@ -75,6 +75,7 @@ export const recordings = mysqlTable(
     // Sharing
     shareToken: varchar("share_token", { length: 64 }),
     isPublic: boolean("is_public").default(false).notNull(),
+    clientEmail: varchar("client_email", { length: 255 }),
     viewCount: int("view_count").default(0).notNull(),
     password: varchar({ length: 255 }),
 
@@ -138,5 +139,27 @@ export const comments = mysqlTable(
   },
   (table) => [
     index("comments_recording_id_idx").on(table.recordingId),
+  ]
+);
+
+// ── API Keys ──────────────────────────────────────────────────────────────────
+
+export const apiKeys = mysqlTable(
+  "api_keys",
+  {
+    id: int().autoincrement().primaryKey(),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar({ length: 100 }).notNull(),
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    keyPrefix: varchar("key_prefix", { length: 10 }).notNull(),
+    lastUsedAt: varchar("last_used_at", { length: 30 }),
+    createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("api_keys_key_hash_unique").on(table.keyHash),
+    index("api_keys_user_id_idx").on(table.userId),
+    index("api_keys_key_hash_idx").on(table.keyHash),
   ]
 );
