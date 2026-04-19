@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Save, Check } from "lucide-react";
+import { Loader2, Save, Check, Copy, Trash2, Plus, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Field({
@@ -43,6 +43,30 @@ export default function ProfilePage() {
   const [instagramUrl, setInstagramUrl] = useState("");
   const [brandColor, setBrandColor] = useState("#7C3AED");
   const [profileSaved, setProfileSaved] = useState(false);
+
+  // API key fields
+  const [newKeyName, setNewKeyName] = useState("");
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  const apiKeysList = trpc.apiKeys.list.useQuery();
+  const createKey = trpc.apiKeys.create.useMutation({
+    onSuccess: (data) => {
+      setCreatedKey(data.key);
+      setNewKeyName("");
+      apiKeysList.refetch();
+    },
+  });
+  const revokeKey = trpc.apiKeys.revoke.useMutation({
+    onSuccess: () => apiKeysList.refetch(),
+  });
+
+  const handleCopyKey = () => {
+    if (!createdKey) return;
+    navigator.clipboard.writeText(createdKey);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState("");
@@ -213,6 +237,91 @@ export default function ProfilePage() {
           {profileSaved ? "Saved!" : "Save Profile"}
         </button>
       </form>
+
+      <hr className="border-border" />
+
+      {/* API Keys */}
+      <div className="space-y-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">API Keys</p>
+          <p className="text-sm text-muted-foreground mt-1">Use API keys to embed recordings on external sites.</p>
+        </div>
+
+        {/* Existing keys */}
+        {apiKeysList.isLoading ? (
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        ) : (apiKeysList.data?.length ?? 0) > 0 ? (
+          <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+            {apiKeysList.data!.map((k) => (
+              <div key={k.id} className="flex items-center justify-between px-4 py-3 bg-background">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Key className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{k.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{k.keyPrefix}••••••••</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 ml-4">
+                  <span className="text-xs text-muted-foreground hidden sm:block">
+                    {k.lastUsedAt ? `Used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "Never used"}
+                  </span>
+                  <button
+                    onClick={() => { if (confirm(`Revoke "${k.name}"?`)) revokeKey.mutate({ id: k.id }); }}
+                    disabled={revokeKey.isPending}
+                    className="text-muted-foreground hover:text-red-500 transition-colors"
+                    title="Revoke key"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No API keys yet.</p>
+        )}
+
+        {/* Newly created key banner */}
+        {createdKey && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+            <p className="text-sm font-medium text-amber-800">Save this key — it won't be shown again.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-white border border-amber-200 rounded px-3 py-2 break-all">{createdKey}</code>
+              <button
+                onClick={handleCopyKey}
+                className="shrink-0 p-2 rounded-lg border border-amber-200 bg-white hover:bg-amber-50 transition-colors"
+                title="Copy key"
+              >
+                {copiedKey ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-amber-700" />}
+              </button>
+            </div>
+            <button onClick={() => setCreatedKey(null)} className="text-xs text-amber-600 hover:underline">Dismiss</button>
+          </div>
+        )}
+
+        {/* Create new key */}
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (newKeyName.trim()) createKey.mutate({ name: newKeyName.trim() }); }}
+          className="flex gap-2"
+        >
+          <input
+            type="text"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            placeholder="Key name (e.g. My Website)"
+            maxLength={100}
+            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
+          />
+          <button
+            type="submit"
+            disabled={createKey.isPending || !newKeyName.trim()}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {createKey.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Generate
+          </button>
+        </form>
+      </div>
 
       <hr className="border-border" />
 

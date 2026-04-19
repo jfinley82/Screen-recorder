@@ -121,7 +121,7 @@ export default function RecordPage() {
             className="w-full"
             style={{ aspectRatio: preset.aspectRatio }}
           />
-          {webcamEnabled && isActive && (
+          {webcamEnabled && (
             <WebcamPreview
               videoRef={webcamVideoRef}
               shape={webcamShape}
